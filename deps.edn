@@ -3,4 +3,11 @@
  {:test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
-         :main-opts ["-m" "cognitect.test-runner"]}}}
+         :main-opts ["-m" "cognitect.test-runner"]}
+  ;; The async suite carries its own oracles (test/run.cljs): the
+  ;; concurrent half behaves differently on one event loop than on JVM
+  ;; threads, and "passes on the JVM" is not evidence for the Worker path
+  ;; every provider in this family actually deploys on.
+  :cljs-test {:extra-paths ["test"]
+              :extra-deps {org.clojure/clojurescript
+                           {:mvn/version "1.11.132"}}}}}

@@ -23,6 +23,29 @@
 (def required-capabilities
   #{:immutable-blocks :cid-addressed-read :conditional-ref})
 
+(def ref-profiles
+  "How far `-compare-and-set-ref!` actually holds.
+
+  `:conditional-ref` only says the operation exists. It says nothing about
+  whether two writers can rely on it, and that is the difference between a
+  backend that rejects a stale publish and one that silently accepts it and
+  loses an update. Every backend must therefore declare exactly one of:
+
+  - `:linearizable-ref` — the CAS is enforced by the store itself, so
+    concurrent writers in unrelated processes are safe. Backed by a real
+    primitive: an ETag precondition the service evaluates, a SQL
+    transaction, `git update-ref`.
+
+  - `:single-writer-ref` — the CAS holds only within one writer. It may be
+    serialized in-process, or ride on a transport with no conditional write
+    at all (IPNS publishes unconditionally; Backblaze B2 has no conditional
+    put on either API). Correct deployments put one writer in front of it,
+    or a linearizable ref service.
+
+  The set is closed and the choice is mandatory because the failure mode of
+  guessing is silent: an ignored precondition returns success."
+  #{:linearizable-ref :single-writer-ref})
+
 (defn block-store? [value] (satisfies? IBlockStore value))
 (defn ref-store? [value] (satisfies? IRefStore value))
 
@@ -31,6 +54,21 @@
   (and (block-store? value)
        (ref-store? value)
        (satisfies? IBackendCapabilities value)))
+
+(defn ref-profile
+  "Which of `ref-profiles` this backend declares, or nil if it declares
+  none or more than one."
+  [backend]
+  (let [declared (filter (-capabilities backend) ref-profiles)]
+    (when (= 1 (count declared)) (first declared))))
+
+(defn linearizable?
+  "True when the backend claims its ref CAS survives concurrent writers.
+
+  Read this rather than testing for `:conditional-ref`, which every backend
+  has and which distinguishes nothing."
+  [backend]
+  (= :linearizable-ref (ref-profile backend)))
 
 (defn validate-backend!
   ([backend] (validate-backend! backend required-capabilities))
@@ -43,6 +81,12 @@
        (throw (ex-info "Kotobase backend lacks required capabilities"
                        {:type :kotobase.storage/missing-capabilities
                         :missing (set missing)}))))
+   (when-not (ref-profile backend)
+     (throw (ex-info "Kotobase backend must declare exactly one ref profile"
+                     {:type :kotobase.storage/undeclared-ref-profile
+                      :expected ref-profiles
+                      :declared (set (filter (-capabilities backend)
+                                             ref-profiles))})))
    backend))
 
 (defn put-block! [store cid bytes]
