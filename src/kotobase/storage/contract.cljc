@@ -1,9 +1,66 @@
 (ns kotobase.storage.contract
-  "Reusable synchronous conformance suite for storage providers."
+  "Reusable synchronous conformance suite for storage providers.
+
+  Same two halves as `kotobase.storage.async-contract`, and for the same
+  reason: a sequential single-writer suite verifies the shape of
+  `-compare-and-set-ref!` and nothing about its strength. On the JVM the
+  concurrent half uses real threads rather than interleaved promises, so
+  it is a stronger test of the same property."
   (:require [kotobase.storage.core :as storage]))
 
+(def ^:private race-width 4)
+
+(defn- race-cas
+  "Fire `race-width` CAS attempts at the same expected head and collect
+   every result.
+
+   `round` keeps a later race's proposals disjoint from an earlier race's
+   winner. Without it the writer proposing exactly the current head does a
+   no-op publish, leaves `current` equal to `expected`, and a second writer
+   then legitimately matches too -- two winners from a correct backend.
+   That was a flake in this check, not a finding about any store, and it
+   only showed up sometimes because it depended on thread ordering."
+  [backend ref-name round expected]
+  #?(:clj (let [start (java.util.concurrent.CountDownLatch. 1)
+                futures (mapv (fn [i]
+                                (future
+                                  ;; Start together. Without the latch the
+                                  ;; first writer routinely finishes before
+                                  ;; the last is even submitted, and the
+                                  ;; race never happens.
+                                  (.await start)
+                                  (storage/-compare-and-set-ref!
+                                   backend ref-name expected
+                                   (str "cid-race-" round "-" i))))
+                              (range race-width))]
+            (.countDown start)
+            (mapv deref futures))
+     :cljs (mapv (fn [i]
+                   (storage/-compare-and-set-ref!
+                    backend ref-name expected
+                    (str "cid-race-" round "-" i)))
+                 (range race-width))))
+
+(defn- verify-race [backend check round expected]
+  (let [results (race-cas backend "race" round expected)
+        winners (filterv :published? results)
+        losers (vec (remove :published? results))]
+    (check (= 1 (count winners))
+           (str "exactly one of " race-width
+                " concurrent writers publishes from the same expected head"))
+    (let [winner (:current (first winners))]
+      (check (every? #(= winner (:current %)) losers)
+             "every concurrent CAS loser observes the winner")
+      (check (= winner (:cid (storage/-read-ref backend "race")))
+             "the published head is the CAS winner")
+      winner)))
+
 (defn verify
-  "Run the shared backend contract. CHECK is `(fn [truthy label])`."
+  "Run the shared backend contract. CHECK is `(fn [truthy label])`.
+
+  The concurrent half runs only for a backend declaring
+  `:linearizable-ref`; a `:single-writer-ref` backend is not asked to pass
+  a property it explicitly does not claim."
   [backend check]
   (storage/validate-backend! backend)
   (let [a #?(:clj (byte-array [1 2 3]) :cljs (js/Uint8Array. #js [1 2 3]))
@@ -33,4 +90,12 @@
              backend "main" "cid-a" "cid-b"))
            "current-head CAS succeeds")
     (check (= "cid-b" (:cid (storage/-read-ref backend "main")))
-           "published ref resolves")))
+           "published ref resolves")
+    (when (storage/linearizable? backend)
+      ;; Genesis and update take different provider paths -- If-None-Match
+      ;; versus If-Match -- and a store can enforce one while ignoring the
+      ;; other, so race both.
+      (let [winner (verify-race backend check "genesis" nil)]
+        (verify-race backend check "update" winner)))
+    {:profile (storage/ref-profile backend)
+     :concurrency (if (storage/linearizable? backend) :verified :not-claimed)}))

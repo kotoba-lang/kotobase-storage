@@ -1,0 +1,30 @@
+name: test
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: DeLaGuardo/setup-clojure@13.0
+        with: { cli: latest }
+      - run: npm install -g nbb
+
+      - name: JVM contract (real threads)
+        run: clojure -M:test
+
+      # Not a duplicate of the JVM run. The concurrent half behaves
+      # differently on one event loop, and every provider in this family
+      # deploys on the Worker path -- so the async suite carries its own
+      # oracles, and this step is what proves the race can still fail.
+      #
+      # nbb rather than `cljs.main -re node`: that runner does not
+      # propagate the script's exit code, so a failing suite exited 0 and
+      # this gate would have been green forever. Checked by breaking an
+      # oracle on purpose.
+      - name: async contract oracles
+        run: nbb --classpath "src:test" test/run.cljs
