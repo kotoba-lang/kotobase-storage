@@ -1,0 +1,131 @@
+(ns kotobase.storage.signed-head
+  "A ref plane that needs no conditional write from its host.
+
+  `:linearizable-ref` backends enforce the compare-and-set themselves, which
+  is the strongest thing to have and the least available: Backblaze B2 has no
+  conditional put on either API, IPNS publishes unconditionally, and a
+  content-addressed or erasure-coded network has nothing to be conditional
+  about at all. Requiring one shuts those hosts out of the ref plane entirely.
+
+  This makes the head a SIGNED, SEQUENCED record stored as an ordinary
+  immutable block, with a dumb unconditional pointer naming the newest one:
+
+      head/v1 = {ref-name, seq, cid, prev, issuer, sig}
+
+  What that buys, precisely:
+
+  1. **Fork detection.** Two heads at the same `seq` are two heads, and a
+     reader can see it. A plain overwritten pointer loses an update with no
+     evidence that anything happened.
+  2. **Untrusted hosting.** A reader verifies the issuer's signature and the
+     sequence itself, so a mirror, CDN or storage node it does not trust can
+     serve the ref. This is what lets the block plane and the ref plane live
+     on the same untrusted infrastructure.
+  3. **The loser learns it lost.** After publishing, the writer re-reads the
+     pointer; if the newest head is not its own, it reports `:published?
+     false` rather than believing it won.
+
+  What it does NOT buy, and the profile says so: **agreement**. A signature
+  proves who issued a head, not that no one else issued another. Two writers
+  racing still fork; this makes the fork visible instead of silent. So the
+  declared profile is `:single-writer-ref`, and a correct deployment still
+  puts one writer in front of it — a Durable Object, an actor, a lease.
+  Declaring `:linearizable-ref` here would be exactly the silent-success
+  failure `ref-profiles` exists to prevent."
+  (:require [kotobase.storage.core :as storage]))
+
+(def head-version "kotobase.head/v1")
+
+(defn head-record
+  "The canonical map a signer signs and a verifier checks. Kept as one
+  function so both sides cannot drift."
+  [{:keys [ref-name seq cid prev issuer]}]
+  {"v" head-version
+   "ref" ref-name
+   "seq" seq
+   "cid" cid
+   "prev" prev
+   "issuer" issuer})
+
+(defn- verify-chain
+  "Verified head map, or nil. A head that fails verification is treated as
+  absent rather than as an error: an untrusted host is expected to be able to
+  serve rubbish, and the caller's job is to not believe it."
+  [head verify-fn]
+  (when (and (map? head)
+             (= head-version (get head "v"))
+             (integer? (get head "seq"))
+             (verify-fn (head-record {:ref-name (get head "ref")
+                                      :seq (get head "seq")
+                                      :cid (get head "cid")
+                                      :prev (get head "prev")
+                                      :issuer (get head "issuer")})
+                        (get head "sig")
+                        (get head "issuer")))
+    head))
+
+(defrecord SignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer]
+  storage/IRefStore
+  (-read-ref [_ ref-name]
+    (when-let [head (verify-chain (read-head! ref-name) verify-fn)]
+      {:cid (get head "cid")
+       :version (get head "seq")}))
+
+  (-compare-and-set-ref! [this ref-name expected next-cid]
+    (let [current (storage/-read-ref this ref-name)]
+      (if (not= expected (:cid current))
+        {:published? false :current (:cid current) :version (:version current)}
+        (let [seq' (inc (or (:version current) -1))
+              record (head-record {:ref-name ref-name :seq seq' :cid next-cid
+                                   :prev (:cid current) :issuer issuer})
+              head (assoc record "sig" (sign-fn record))]
+          (write-head! ref-name head)
+          ;; The write was unconditional, so winning is not assumed: re-read
+          ;; and check whose head is actually there. Without this a losing
+          ;; writer returns published? true and the caller proceeds on a head
+          ;; that no longer exists.
+          (let [after (verify-chain (read-head! ref-name) verify-fn)]
+            (if (and after (= seq' (get after "seq")) (= next-cid (get after "cid")))
+              {:published? true :current next-cid :version seq'}
+              {:published? false
+               :current (get after "cid")
+               :version (get after "seq")}))))))
+
+  storage/IBackendCapabilities
+  (-capabilities [_]
+    ;; NOT :linearizable-ref. See the namespace docstring: a signature proves
+    ;; authorship, not exclusivity.
+    #{:conditional-ref :single-writer-ref}))
+
+(defn open
+  "A ref store over an unconditional pointer.
+
+  `:read-head!`  (fn [ref-name]) -> head map or nil
+  `:write-head!` (fn [ref-name head]) -> ignored; may overwrite unconditionally
+  `:sign-fn`     (fn [record]) -> signature
+  `:verify-fn`   (fn [record signature issuer]) -> truthy
+  `:issuer`      identifier recorded in every head this store publishes
+
+  The pointer can be anything that stores bytes under a name without
+  conditions: an S3 PUT, an IPNS publish, a file. That is the point — the host
+  is not being asked for a guarantee it cannot give."
+  [{:keys [read-head! write-head! sign-fn verify-fn issuer]}]
+  (doseq [[k v] {:read-head! read-head! :write-head! write-head!
+                 :sign-fn sign-fn :verify-fn verify-fn}]
+    (when-not (ifn? v)
+      (throw (ex-info "signed-head ref store is missing a port"
+                      {:type :kotobase.storage/invalid-configuration
+                       :missing k}))))
+  (when (nil? issuer)
+    (throw (ex-info "signed-head ref store requires an issuer"
+                    {:type :kotobase.storage/invalid-configuration
+                     :missing :issuer})))
+  (->SignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer))
+
+(defn forked?
+  "True when `a` and `b` are different heads claiming the same sequence — the
+  evidence a plain overwritten pointer cannot produce."
+  [a b]
+  (boolean (and a b
+                (= (get a "seq") (get b "seq"))
+                (not= (get a "cid") (get b "cid")))))
