@@ -1,8 +1,19 @@
 {:paths ["src"]
  :aliases
  {:test {:extra-paths ["test"]
+         ;; io-multiformats is a TEST-ONLY dependency on purpose.
+         ;; `kotobase.storage.object-id` assembles base32/multihash/CIDv1 with
+         ;; no dependencies, because this library sits under every provider
+         ;; including Worker builds and io-multiformats pulls @noble/hashes on
+         ;; :cljs. Zero-dep and second-implementation are both real costs; the
+         ;; one we refuse to pay is SILENT drift, so the suite checks our
+         ;; arithmetic against theirs (which is byte-identical to
+         ;; `ipfs add --cid-version=1 --raw-leaves`).
          :extra-deps {io.github.cognitect-labs/test-runner
-                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}
+                      io.github.kotoba-lang/io-multiformats
+                      {:git/url "https://github.com/kotoba-lang/io-multiformats.git"
+                       :git/sha "d2f43630eb893eea74ab580fdd7d09263f8e7362"}}
          :main-opts ["-m" "cognitect.test-runner"]}
   ;; The async suite carries its own oracles (test/run.cljs): the
   ;; concurrent half behaves differently on one event loop than on JVM

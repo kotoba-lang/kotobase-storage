@@ -67,6 +67,45 @@ write, four writers would serialize and the race would pass against a store
 enforcing nothing. That oracle is what makes the check meaningful rather
 than decorative.
 
+## Large objects are a third plane, and declare a transfer profile
+
+`kotobase.storage.object` is the port for bytes too big to move as blocks —
+git-LFS objects and git-annex/DataLad content (superproject ADR-2608012600).
+It is separate from `IBlockStore` for the same reason blocks and refs are
+separate: what a caller may rely on differs, and guessing fails silently.
+
+A block travels through the process that asked for it; a GB object must not,
+and proxying it is what put a 4 MiB ceiling on `PUT /ipfs/:cid`. So every
+large-object provider declares exactly one **transfer profile**:
+
+| profile | meaning |
+|---|---|
+| `:presigned-transfer` | it can hand the client a URL; bytes go straight to storage |
+| `:proxied-transfer` | bytes must pass through this process |
+
+and separately declares `:object-delete`. A store that cannot delete must
+return `{:deleted? false :reason :not-supported}` — the contract suite fails
+a store that reports a successful delete while the bytes stay readable,
+because `git annex drop --from` and an LFS quota both act on that answer.
+
+Two properties the suite refuses to let a provider skip:
+
+- **a PUT grant binds `content-length` in its signature.** Listing the header
+  in the request while signing only `host` binds nothing, and an unbound
+  presigned PUT is a blank cheque for arbitrary bytes under a CID whose
+  digest the holder never had to know.
+- **`present?` means THIS store holds it**, not that the bytes exist
+  somewhere. git-annex drops its last local copy on the strength of that
+  answer.
+
+`kotobase.storage.object-id` is the identity seam: git-LFS `oid sha256:<hex>`,
+git-annex `SHA256E-s<size>--<hex>` and CIDv1(raw, sha2-256) all carry the same
+digest, so the conversions are pure functions and no registry is needed. The
+two configurations that break the derivation — `chunk=` (every chunk carries
+the whole file's digest) and client-side encryption (`GPGHMACSHA1--…` is an
+HMAC) — return nil and throw rather than resolve to some other object. It is
+dependency-free and cross-checked against `io-multiformats` in the tests.
+
 ## Test
 
 ```sh
