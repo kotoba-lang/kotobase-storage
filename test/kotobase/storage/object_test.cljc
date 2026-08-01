@@ -1,0 +1,119 @@
+(ns kotobase.storage.object-test
+  "The large-object port, and the two things it exists to make impossible:
+  a store that reports a successful delete it did not perform, and a
+  presigned PUT that binds nothing."
+  (:require [clojure.test :refer [deftest is testing]]
+            [kotobase.storage.object :as object]
+            [kotobase.storage.object-contract :as contract]
+            [kotobase.storage.object-memory :as memory]))
+
+(defn- checker
+  "Collect (pass? label) pairs so a test can assert on the suite itself."
+  []
+  (let [results (atom [])]
+    [results (fn [pass? label] (swap! results conj [(boolean pass?) label]))]))
+
+(defn- run [store]
+  (let [[results check] (checker)
+        summary (contract/verify store check)]
+    {:summary summary
+     :failures (remove first @results)
+     :count (count @results)}))
+
+(deftest memory-store-passes-the-contract
+  (let [{:keys [summary failures count]} (run (memory/memory-object-store))]
+    (is (empty? failures) (pr-str failures))
+    (is (pos? count))
+    (is (= {:profile :proxied-transfer :deletes true} summary))))
+
+(deftest a-store-that-cannot-delete-says-so
+  (testing "and the suite accepts that answer — what it refuses is a store
+            that reports success while the bytes stay readable, which is
+            exactly what a tombstone over GET /ipfs/:cid would do"
+    (let [{:keys [summary failures]} (run (memory/memory-object-store {:delete? false}))]
+      (is (empty? failures) (pr-str failures))
+      (is (= {:profile :proxied-transfer :deletes false} summary)))))
+
+;; ── presigned stores ────────────────────────────────────────────────────────
+
+(defrecord Presigned [bind-length?]
+  object/IObjectStore
+  (-stat-object [_ cid] (object/assert-object-cid! cid) nil)
+  (-delete-object! [_ _] {:deleted? false :reason :not-supported})
+  object/IPresignedTransfer
+  (-presign-put [_ cid opts]
+    (object/grant {:href (str "https://example.invalid/put/" cid)
+                   :method :put
+                   :expires-at 1
+                   :headers {"content-length" (str (:size-bytes opts))}
+                   :signed-headers (if bind-length?
+                                     ["host" "content-length"]
+                                     ["host"])}))
+  (-presign-get [_ cid _]
+    (object/grant {:href (str "https://example.invalid/get/" cid)
+                   :method :get
+                   :expires-at 1
+                   :signed-headers ["host"]}))
+  object/IObjectCapabilities
+  (-object-capabilities [_] #{:large-objects :presigned-transfer}))
+
+(deftest a-presigned-store-must-bind-the-size-it-grants
+  (testing "listing content-length in the request while signing only host
+            binds nothing: whoever holds the URL may write any number of
+            bytes under a CID whose digest they never had to know"
+    (let [{:keys [failures]} (run (->Presigned false))]
+      (is (= 1 (clojure.core/count failures)))
+      (is (re-find #"blank cheque" (second (first failures))))))
+  (let [{:keys [summary failures]} (run (->Presigned true))]
+    (is (empty? failures) (pr-str failures))
+    (is (= {:profile :presigned-transfer :deletes false} summary))))
+
+;; ── declaration must match implementation ───────────────────────────────────
+
+(defrecord ClaimsPresignCannotPresign []
+  object/IObjectStore
+  (-stat-object [_ _] nil)
+  (-delete-object! [_ _] {:deleted? false :reason :not-supported})
+  object/IObjectCapabilities
+  (-object-capabilities [_] #{:large-objects :presigned-transfer}))
+
+(defrecord DeclaresBothProfiles [])
+
+(deftest validation-catches-a-profile-nobody-implemented
+  (testing "otherwise the first upload of the first customer finds out"
+    (let [e (try (object/validate-object-store! (->ClaimsPresignCannotPresign))
+                 nil
+                 (catch #?(:clj Exception :cljs :default) e (ex-data e)))]
+      (is (= :kotobase.storage/transfer-profile-mismatch (:type e))))))
+
+(deftest validation-requires-exactly-one-profile
+  (let [both (reify
+               object/IObjectStore
+               (-stat-object [_ _] nil)
+               (-delete-object! [_ _] {:deleted? false})
+               object/IProxiedTransfer
+               (-put-object! [_ _ _] nil)
+               (-get-object [_ _] nil)
+               object/IObjectCapabilities
+               (-object-capabilities [_]
+                 #{:large-objects :presigned-transfer :proxied-transfer}))
+        none (reify
+               object/IObjectStore
+               (-stat-object [_ _] nil)
+               (-delete-object! [_ _] {:deleted? false})
+               object/IObjectCapabilities
+               (-object-capabilities [_] #{:large-objects}))]
+    (doseq [store [both none]]
+      (let [e (try (object/validate-object-store! store) nil
+                   (catch #?(:clj Exception :cljs :default) e (ex-data e)))]
+        (is (= :kotobase.storage/undeclared-transfer-profile (:type e)))))))
+
+(deftest present-means-this-store-holds-it
+  (testing "not 'these bytes exist somewhere'. git-annex drops its last local
+            copy on the strength of this answer"
+    (let [store (memory/memory-object-store)
+          cid "bafkreiadsbmmn4waznesyuz3bjgrj33xzqhxrk6mz3ksq7meugrachh3qe"]
+      (is (false? (object/present? store cid)))
+      (object/-put-object! store cid #?(:clj (byte-array [1 2 3])
+                                        :cljs (js/Uint8Array. #js [1 2 3])))
+      (is (true? (object/present? store cid))))))
