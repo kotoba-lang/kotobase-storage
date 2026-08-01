@@ -17,7 +17,8 @@
   offer, and it is what the old suite could never distinguish from a real
   precondition."
   (:require [kotobase.storage.async-contract :as contract]
-            [kotobase.storage.core :as storage]))
+            [kotobase.storage.core :as storage]
+            [kotobase.storage.verify :as verify]))
 
 (defn- resolved [value] (js/Promise.resolve value))
 
@@ -95,6 +96,93 @@
                 (js/console.error (str "FAIL: " label " -- " (.-message error)))
                 (swap! failures inc)))))
 
+;; ── the verifying decorator, on the side it actually ships on ───────────────
+;;
+;; `verify_test.cljc` runs on the JVM, where `-get-blocks` returns a map. The
+;; async decorator returns a PROMISE, and the read path the decorator exists
+;; for -- the peer Worker's `get-node!` -- is on this side. Untested here it
+;; would ship with no coverage at all on the only runtime it is for.
+
+(defn- expect [ok? label]
+  (if ok?
+    (println (str "ok  - " label))
+    (do (js/console.error (str "FAIL: " label)) (swap! failures inc))))
+
+(defn- cause-data
+  "`ex-data`, looking through SCI's wrapper.
+
+  nbb interprets this file, so an exception thrown by an interpreted fn that
+  a JS `.then` callback invokes comes back re-wrapped as `{:type :sci/error}`
+  with the original hung off the cause. A compiled ClojureScript build -- the
+  Worker path this suite stands in for -- rejects with the ExceptionInfo
+  directly. Asserting on the wrapper would make this oracle a statement about
+  the test runner rather than about the store."
+  [error]
+  (let [data (ex-data error)]
+    (if (= :sci/error (:type data)) (recur (ex-cause error)) data)))
+
+(defn- expect-mismatch
+  "A tampered block must REJECT the promise. Resolving without it would look
+  to a tree walk exactly like a missing node."
+  [promise label]
+  (-> promise
+      (.then (fn [found]
+               (js/console.error
+                (str "FAIL: " label " -- resolved instead of rejecting: "
+                     (pr-str found)))
+               (swap! failures inc)))
+      (.catch (fn [error]
+                (if (= verify/mismatch-type (:type (cause-data error)))
+                  (println (str "ok  - " label))
+                  (do (js/console.error
+                       (str "FAIL: " label " -- rejected for the wrong reason: "
+                            (.-message error)))
+                      (swap! failures inc)))))))
+
+;; Content addressing reduced to its only load-bearing property: the same
+;; bytes always name themselves the same way, different bytes do not.
+(defn- name-of [bytes] (str "cid:" (vec bytes)))
+
+(defrecord AsyncBlocks [blocks]
+  storage/IBlockStore
+  (-put-blocks! [_ bs] (resolved (mapv :cid bs)))
+  (-get-blocks [_ cids] (resolved (select-keys blocks cids)))
+  storage/IBackendCapabilities
+  (-capabilities [_] storage/block-capabilities))
+
+(defn- verify-oracles []
+  (let [a [1 2 3]
+        honest (verify/async-verifying-block-store
+                (->AsyncBlocks {(name-of a) a}) name-of)
+        lying (verify/async-verifying-block-store
+               (->AsyncBlocks {(name-of a) [9 9 9]}) name-of)
+        wrapped (verify/async-verifying-block-store
+                 (store :linearizable-ref :enforced) name-of)]
+    (expect (contains? (storage/-capabilities wrapped) :linearizable-ref)
+            "async verify: the wrapped store's capabilities are delegated")
+    (expect (contains? (storage/-capabilities wrapped) verify/verified-capability)
+            "async verify: and :verified-blocks is declared, not implied")
+    (expect (storage/ref-store? wrapped)
+            "async verify: wrapping a full backend keeps its ref plane")
+    (expect (not (storage/ref-store? honest))
+            "async verify: wrapping a block-only store does not invent one")
+    (-> (storage/-get-blocks honest [(name-of a) "cid:absent"])
+        (.then (fn [found]
+                 (expect (= {(name-of a) a} found)
+                         "async verify: a matching block passes through and a missing CID stays missing")))
+        (.then (fn [_]
+                 (expect-mismatch
+                  (storage/-get-blocks lying [(name-of a)])
+                  "async verify: a tampered block rejects rather than vanishing")))
+        (.then (fn [_] (storage/-compare-and-set-ref! wrapped "verified" nil "cid-a")))
+        (.then (fn [published]
+                 (expect (:published? published)
+                         "async verify: the ref plane is delegated, promise and all")
+                 (storage/-read-ref wrapped "verified")))
+        (.then (fn [head]
+                 (expect (= "cid-a" (:cid head))
+                         "async verify: and the delegated ref reads back"))))))
+
 (defn -main [& _]
   (-> (expect-pass (store :linearizable-ref :enforced)
                    "an enforcing store passes, race included"
@@ -124,6 +212,7 @@
                             "a single-writer store passes without being raced"
                             {:checks 8 :profile :single-writer-ref
                              :concurrency :not-claimed})))
+      (.then (fn [_] (verify-oracles)))
       (.then (fn [_]
                (if (zero? @failures)
                  (println "async contract oracles: all green")
