@@ -106,9 +106,51 @@ the whole file's digest) and client-side encryption (`GPGHMACSHA1--…` is an
 HMAC) — return nil and throw rather than resolve to some other object. It is
 dependency-free and cross-checked against `io-multiformats` in the tests.
 
+## Verification is a property of the store, not of each caller
+
+Blocks may live on hosts nobody trusts, which is only sound if somebody
+re-hashes what comes back. `kotobase.storage.verify` makes that the store's
+job instead of every caller's:
+
+```clojure
+(verify/verifying-block-store inner cid-of)        ; JVM / sync
+(verify/async-verifying-block-store inner cid-of)  ; Worker / Promise
+```
+
+`cid-of` is `(fn [bytes] cid-string)` and is **injected**, not depended on:
+this library sits under every provider including Worker builds, so a hashing
+dependency here would land in all of them. `io-multiformats` stays test-only
+for the same reason `object-id` is hand-rolled.
+
+A block whose bytes do not hash to the CID it was returned under **throws**
+`:kotobase.storage/cid-mismatch`. That is deliberately the opposite of
+`signed-head`, which reads an unverifiable head as absent — and the
+difference is what absence means to the caller. A missing ref means "nothing
+published", and the caller's next move is safe. A missing block is
+indistinguishable from a subtree that does not exist, so omitting a tampered
+one turns a corrupt store into a *shorter answer*: rows quietly gone from a
+query, looking exactly like a cache miss. A CID is only ever asked for
+because something pointed at it, so a mismatch is not "the host has nothing"
+— it is proof the host returned bytes that are not the bytes.
+
+`classify` gives a scrub pass the survey it needs (`{:verified … :mismatched
+…}`) so wanting to enumerate damage never requires making the read path
+lenient. Missing CIDs stay omitted, `IRefStore` is delegated when and only
+when the wrapped store has it (so `backend?` keeps telling the truth), and
+`-capabilities` gains `:verified-blocks` so the guarantee is discoverable
+rather than an accident of assembly.
+
+Puts are not verified: the bytes on a put came from this process, and a
+caller that computes its own CIDs wrongly builds a store that fails its own
+reads, loudly, at the same seam.
+
 ## Test
 
 ```sh
-clojure -M:test                                          # JVM, real threads
-clojure -M:cljs-test -m cljs.main -re node -m run        # async, with oracles
+clojure -M:test                          # JVM, real threads
+nbb --classpath "src:test" test/run.cljs # async, with oracles
 ```
+
+Both, as CI runs them. `nbb` rather than `cljs.main -re node`: that runner
+does not propagate the script's exit code, so a failing suite exited 0 and
+the gate would have been green forever.
