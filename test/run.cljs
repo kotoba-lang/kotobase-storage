@@ -18,6 +18,7 @@
   precondition."
   (:require [kotobase.storage.async-contract :as contract]
             [kotobase.storage.core :as storage]
+            [kotobase.storage.signed-head :as sh]
             [kotobase.storage.verify :as verify]))
 
 (defn- resolved [value] (js/Promise.resolve value))
@@ -95,6 +96,55 @@
       (.catch (fn [error]
                 (js/console.error (str "FAIL: " label " -- " (.-message error)))
                 (swap! failures inc)))))
+
+;; ── the signed head, on the side it actually ships on ───────────────────────
+;;
+;; `signed_head_test.cljc` runs on the JVM and exercises the SYNCHRONOUS store.
+;; That store cannot be attached to a single host this namespace exists for:
+;; B2, IPNS, S3 and a content-addressed network are all reached over the
+;; network, and on the Worker runtime that means a Promise. So the sync
+;; implementation was the whole ref plane, and it was untestable against every
+;; intended deployment. `async-open` is the half that ships; this is where it
+;; gets held to the same contract as every other backend.
+
+(defn- async-pointer
+  "The dumb unconditional pointer, answering with Promises -- an S3 PUT, an
+  IPNS publish.
+
+  The write LANDS A TURN LATER, deliberately. A pointer that applied the swap
+  before returning its promise would be updated whether the caller awaited it
+  or not, and the re-read-after-publish check -- the thing that lets a losing
+  writer discover it lost -- would pass with the await removed. Deferring it
+  is what makes that assertion mean anything, and it is also what a real
+  network PUT does."
+  []
+  (let [state (atom {})]
+    {:read-head! (fn [n] (resolved (get @state n)))
+     :write-head! (fn [n head]
+                    ;; several turns, not one. A single `.then` still lands
+                    ;; before the caller's next read even when the promise is
+                    ;; dropped, so a one-turn defer cannot tell an awaited
+                    ;; write from an ignored one -- measured: removing the
+                    ;; await left the suite green. A real PUT is many turns.
+                    (-> (reduce (fn [p _] (.then p identity))
+                                (resolved nil)
+                                (range 8))
+                        (.then (fn [_] (swap! state assoc n head)))))}))
+
+(defn- async-signed-head-backend
+  "Blocks on a store with no conditional write, refs on a signed head -- the
+  composition the split exists to make expressible."
+  []
+  (let [k "alice"
+        sign-fn (fn [record] (resolved [k (hash record)]))
+        verify-fn (fn [record sig issuer]
+                    (resolved (and (= sig [k (hash record)]) (= issuer k))))]
+    (storage/compose
+     {:blocks (store :single-writer-ref :ignored)
+      :refs (sh/async-open (assoc (async-pointer)
+                                  :sign-fn sign-fn
+                                  :verify-fn verify-fn
+                                  :issuer k))})))
 
 ;; ── the verifying decorator, on the side it actually ships on ───────────────
 ;;
@@ -210,6 +260,14 @@
                ;; and is simply not asked about concurrent writers.
                (expect-pass (store :single-writer-ref :toctou)
                             "a single-writer store passes without being raced"
+                            {:checks 8 :profile :single-writer-ref
+                             :concurrency :not-claimed})))
+      (.then (fn [_]
+               ;; :not-claimed, not :verified. A signature proves authorship,
+               ;; not exclusivity -- if this ever reported :verified the suite
+               ;; would be lending the store the one guarantee it refuses.
+               (expect-pass (async-signed-head-backend)
+                            "async signed head satisfies the shared contract"
                             {:checks 8 :profile :single-writer-ref
                              :concurrency :not-claimed})))
       (.then (fn [_] (verify-oracles)))

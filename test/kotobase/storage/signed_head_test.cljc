@@ -1,6 +1,8 @@
 (ns kotobase.storage.signed-head-test
   (:require [clojure.test :refer [deftest is testing]]
+            [kotobase.storage.contract :as contract]
             [kotobase.storage.core :as storage]
+            [kotobase.storage.memory :as memory]
             [kotobase.storage.signed-head :as sh]))
 
 ;; A deliberately dumb pointer: unconditional overwrite, exactly what B2 or an
@@ -96,3 +98,28 @@
           backend (storage/compose {:blocks blocks :refs (:store (store "alice"))})]
       (is (= backend (storage/validate-backend! backend)))
       (is (= :single-writer-ref (storage/ref-profile backend))))))
+
+;; ── the shared conformance suite ────────────────────────────────────────────
+;;
+;; Everything above tests this ref store against assertions written for it.
+;; That is the weaker half of the job: the README says "Provider
+;; implementations must run `kotobase.storage.contract/verify`", and until now
+;; the newest ref plane in the repo was the one implementation not doing it.
+;; A store can satisfy every bespoke test in its own file and still disagree
+;; with the contract every other provider is held to -- the suite exists
+;; because that disagreement is what breaks callers.
+;;
+;; Composed against the real memory block store rather than the stub above, so
+;; the block half of the contract is exercised too. `compose` deliberately
+;; strips ref profiles off the block side, so the `:linearizable-ref` that
+;; `memory-store` declares cannot lend itself to this composition -- the
+;; profile below has to come from the signed head, and it does.
+(deftest signed-head-satisfies-the-shared-contract
+  (let [backend (storage/compose {:blocks (memory/memory-store)
+                                  :refs (:store (store "alice"))})
+        result (contract/verify backend (fn [ok? label] (is ok? label)))]
+    (testing "and the race half is reported as not-claimed rather than passed"
+      ;; `:single-writer-ref` must NOT report `:concurrency :verified`. A
+      ;; passing run that looked identical to a linearizable one would be the
+      ;; suite lending this store a guarantee it explicitly refuses to make.
+      (is (= {:profile :single-writer-ref :concurrency :not-claimed} result)))))
