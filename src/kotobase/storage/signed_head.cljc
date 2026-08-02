@@ -129,3 +129,94 @@
   (boolean (and a b
                 (= (get a "seq") (get b "seq"))
                 (not= (get a "cid") (get b "cid")))))
+
+;; ── the same ref plane, for a pointer that answers with a Promise ───────────
+;;
+;; Not a convenience. Everything above is synchronous, and the hosts this
+;; namespace exists FOR are not: B2, IPNS, S3, a content-addressed network.
+;; Each of those is reached over the network, and on the runtime that ships
+;; the Worker that means a Promise. So the sync store could not be attached to
+;; a single host it was designed for -- the same asymmetry prolly-tree has,
+;; where `scan-prefix` grew an async variant and the write path never did.
+;;
+;; `sign-fn`/`verify-fn` are Promise-returning here too, because Web Crypto has
+;; no synchronous signature primitive; that is the same platform split
+;; `arrangement`'s `blind-fn`/`encrypt-fn` already carry.
+;;
+;; The one thing that must not be lost in translation: the write is AWAITED
+;; before the re-read. The sync version's correctness rests on reading back
+;; what is actually there after publishing, and a `write-head!` whose Promise
+;; is dropped would be re-read before it landed -- turning the loser-detects-
+;; loss check into a coin flip.
+#?(:cljs
+   (defn- verify-chain-async
+     [head verify-fn]
+     (if-not (and (map? head)
+                  (= head-version (get head "v"))
+                  (integer? (get head "seq")))
+       (js/Promise.resolve nil)
+       (-> (js/Promise.resolve
+            (verify-fn (head-record {:ref-name (get head "ref")
+                                     :seq (get head "seq")
+                                     :cid (get head "cid")
+                                     :prev (get head "prev")
+                                     :issuer (get head "issuer")})
+                       (get head "sig")
+                       (get head "issuer")))
+           (.then (fn [ok?] (when ok? head)))))))
+
+#?(:cljs
+   (defrecord AsyncSignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer]
+     storage/IRefStore
+     (-read-ref [_ ref-name]
+       (-> (js/Promise.resolve (read-head! ref-name))
+           (.then #(verify-chain-async % verify-fn))
+           (.then (fn [head]
+                    (when head
+                      {:cid (get head "cid") :version (get head "seq")})))))
+
+     (-compare-and-set-ref! [this ref-name expected next-cid]
+       (-> (storage/-read-ref this ref-name)
+           (.then
+            (fn [current]
+              (if (not= expected (:cid current))
+                {:published? false :current (:cid current) :version (:version current)}
+                (let [seq' (inc (or (:version current) -1))
+                      record (head-record {:ref-name ref-name :seq seq' :cid next-cid
+                                           :prev (:cid current) :issuer issuer})]
+                  (-> (js/Promise.resolve (sign-fn record))
+                      (.then (fn [sig]
+                               ;; awaited on purpose -- see the note above
+                               (js/Promise.resolve
+                                (write-head! ref-name (assoc record "sig" sig)))))
+                      (.then (fn [_] (js/Promise.resolve (read-head! ref-name))))
+                      (.then (fn [h] (verify-chain-async h verify-fn)))
+                      (.then (fn [after]
+                               (if (and after
+                                        (= seq' (get after "seq"))
+                                        (= next-cid (get after "cid")))
+                                 {:published? true :current next-cid :version seq'}
+                                 {:published? false
+                                  :current (get after "cid")
+                                  :version (get after "seq")}))))))))))
+
+     storage/IBackendCapabilities
+     (-capabilities [_] #{:conditional-ref :single-writer-ref})))
+
+#?(:cljs
+   (defn async-open
+     "`open` for a Promise-returning pointer. Same ports, same guarantees, same
+     `:single-writer-ref` profile — a signature still proves authorship rather
+     than exclusivity, and awaiting the write does not change that."
+     [{:keys [read-head! write-head! sign-fn verify-fn issuer]}]
+     (doseq [[k v] {:read-head! read-head! :write-head! write-head!
+                    :sign-fn sign-fn :verify-fn verify-fn}]
+       (when-not (ifn? v)
+         (throw (ex-info "signed-head ref store is missing a port"
+                         {:type :kotobase.storage/invalid-configuration
+                          :missing k}))))
+     (when (nil? issuer)
+       (throw (ex-info "signed-head ref store requires an issuer"
+                       {:type :kotobase.storage/invalid-configuration
+                        :missing :issuer})))
+     (->AsyncSignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer)))
