@@ -146,6 +146,43 @@
                                   :verify-fn verify-fn
                                   :issuer k))})))
 
+;; ── a head is addressed, on the side it actually ships on (ADR-2608047000) ──
+;;
+;; The JVM suite covers cross-ref substitution and an unaccepted issuer. This
+;; namespace's own principle is that "passes on the JVM" is not evidence for
+;; the Worker path, and `verify-chain-async` is a second copy of the check --
+;; the exact shape that drifts. Both heads below are genuinely signed; nothing
+;; here forges anything.
+
+(declare expect)
+
+(defn- async-addressing-oracles []
+  (let [state (atom {})
+        pointer {:read-head! (fn [n] (resolved (get @state n)))
+                 :write-head! (fn [n head] (resolved (swap! state assoc n head)))}
+        ;; the NATURAL verify-fn: valid for the key it names, issuer unpinned
+        sign-fn (fn [record] (resolved ["sig" (hash record)]))
+        verify-fn (fn [record sig _issuer] (resolved (= sig ["sig" (hash record)])))
+        refs (sh/async-open (assoc pointer :sign-fn sign-fn :verify-fn verify-fn
+                                   :issuer "alice"))]
+    (-> (storage/-compare-and-set-ref! refs "main" nil "cid-a")
+        (.then (fn [_]
+                 ;; the host answers a read for `other` with `main`'s real head
+                 (swap! state assoc "other" (get @state "main"))
+                 (storage/-read-ref refs "other")))
+        (.then (fn [head]
+                 (expect (nil? head)
+                         "async: a head addressed to another ref is not this ref's head")
+                 (let [record (sh/head-record {:ref-name "main" :seq 99
+                                               :cid "cid-mallory" :prev "cid-a"
+                                               :issuer "mallory"})]
+                   (swap! state assoc "main"
+                          (assoc record "sig" ["sig" (hash record)]))
+                   (storage/-read-ref refs "main"))))
+        (.then (fn [head]
+                 (expect (nil? head)
+                         "async: a valid signature by an unaccepted issuer is not authority"))))))
+
 ;; ── the verifying decorator, on the side it actually ships on ───────────────
 ;;
 ;; `verify_test.cljc` runs on the JVM, where `-get-blocks` returns a map. The
@@ -270,6 +307,7 @@
                             "async signed head satisfies the shared contract"
                             {:checks 8 :profile :single-writer-ref
                              :concurrency :not-claimed})))
+      (.then (fn [_] (async-addressing-oracles)))
       (.then (fn [_] (verify-oracles)))
       (.then (fn [_]
                (if (zero? @failures)

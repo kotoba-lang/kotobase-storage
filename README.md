@@ -108,6 +108,35 @@ dependency-free and cross-checked against `io-multiformats` in the tests.
 
 ## Verification is a property of the store, not of each caller
 
+## A signed head has to be addressed, not just signed
+
+`signed-head` exists so a ref can be served by a mirror, CDN or storage node
+nobody trusts. Until 2026-08-04 the read path did not deliver that, and both
+gaps were the same mistake in different clothes — checking a **signature**
+where **authority** was needed. Every head involved is genuinely signed;
+nothing had to be forged.
+
+| gap | what an untrusted host could do |
+|---|---|
+| `"ref"` was signed but never compared to the ref being read | answer a read for ref B with ref A's real head — a reader gets A's CID under B |
+| `verify-fn` was called with the issuer **the record names** | substitute a head signed by its own key; "somebody signed this" is satisfied by any keypair |
+
+Both are now checked *before* the signature, so a head addressed elsewhere
+never reaches a verify that would say yes. `open`/`async-open` take an
+optional `:accept-issuer?`; **it defaults to accepting only the store's own
+`:issuer`, which is a behaviour change.** The documented deployment model is
+one writer per ref, so that is the right default; a deployment that rotates
+signing identities or hands a ref over on purpose passes its own predicate
+(`#(contains? known-issuers %)`) — a stated decision rather than the absence
+of one.
+
+The oracles run on both runtimes deliberately. `verify-chain-async` is a
+second copy of the check, which is the exact shape that drifts, and this
+library's own principle is that passing on the JVM is not evidence for the
+Worker path. Superproject decision record: **ADR-2608047000**.
+
+## Untrusted blocks
+
 Blocks may live on hosts nobody trusts, which is only sound if somebody
 re-hashes what comes back. `kotobase.storage.verify` makes that the store's
 job instead of every caller's:
