@@ -47,14 +47,37 @@
    "prev" prev
    "issuer" issuer})
 
+(defn- addressed-to?
+  "Is this head the head OF `ref-name`, issued by someone this store accepts?
+
+  Both halves are the difference between checking a signature and checking
+  authority, and both were missing until 2026-08-04:
+
+  **The ref name.** `read-head!` is documented as reading from a host that is
+  not trusted — that is the whole premise. `\"ref\"` is inside the signed
+  record, but nothing compared it to the name actually being read, so the same
+  host could answer a read for ref B with ref A's genuinely-signed head and it
+  verified. A reader then gets ref A's CID under ref B: not corruption the
+  signature can catch, because nothing was forged.
+
+  **The issuer.** `verify-fn` is called with the issuer the record NAMES, so
+  the check was \"somebody signed this\", which any keypair satisfies. An
+  untrusted host substituting a head signed by its own key passed. Verifying a
+  signature by an unconstrained issuer is not evidence about an untrusted
+  host, and untrusted hosting is precisely what this namespace claims to buy."
+  [head ref-name accept-issuer?]
+  (and (= ref-name (get head "ref"))
+       (accept-issuer? (get head "issuer"))))
+
 (defn- verify-chain
   "Verified head map, or nil. A head that fails verification is treated as
   absent rather than as an error: an untrusted host is expected to be able to
   serve rubbish, and the caller's job is to not believe it."
-  [head verify-fn]
+  [head ref-name accept-issuer? verify-fn]
   (when (and (map? head)
              (= head-version (get head "v"))
              (integer? (get head "seq"))
+             (addressed-to? head ref-name accept-issuer?)
              (verify-fn (head-record {:ref-name (get head "ref")
                                       :seq (get head "seq")
                                       :cid (get head "cid")
@@ -64,10 +87,11 @@
                         (get head "issuer")))
     head))
 
-(defrecord SignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer]
+(defrecord SignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer
+                               accept-issuer?]
   storage/IRefStore
   (-read-ref [_ ref-name]
-    (when-let [head (verify-chain (read-head! ref-name) verify-fn)]
+    (when-let [head (verify-chain (read-head! ref-name) ref-name accept-issuer? verify-fn)]
       {:cid (get head "cid")
        :version (get head "seq")}))
 
@@ -84,7 +108,7 @@
           ;; and check whose head is actually there. Without this a losing
           ;; writer returns published? true and the caller proceeds on a head
           ;; that no longer exists.
-          (let [after (verify-chain (read-head! ref-name) verify-fn)]
+          (let [after (verify-chain (read-head! ref-name) ref-name accept-issuer? verify-fn)]
             (if (and after (= seq' (get after "seq")) (= next-cid (get after "cid")))
               {:published? true :current next-cid :version seq'}
               {:published? false
@@ -105,11 +129,23 @@
   `:sign-fn`     (fn [record]) -> signature
   `:verify-fn`   (fn [record signature issuer]) -> truthy
   `:issuer`      identifier recorded in every head this store publishes
+  `:accept-issuer?` (fn [issuer]) -> truthy; OPTIONAL, defaults to accepting
+                 only `:issuer` itself
 
   The pointer can be anything that stores bytes under a name without
   conditions: an S3 PUT, an IPNS publish, a file. That is the point — the host
-  is not being asked for a guarantee it cannot give."
-  [{:keys [read-head! write-head! sign-fn verify-fn issuer]}]
+  is not being asked for a guarantee it cannot give.
+
+  **`:accept-issuer?` defaults to strict, and that is a behaviour change as of
+  2026-08-04.** Reads previously accepted a head signed by ANY issuer the
+  record happened to name, which makes the signature check say only \"somebody
+  signed this\" — no evidence at all against the untrusted host this namespace
+  is built for. The documented deployment model is one writer per ref, so its
+  own `:issuer` is the right default. A deployment that rotated signing
+  identities, or hands a ref between issuers on purpose, passes its own
+  predicate (e.g. `#(contains? known-issuers %)`) — which is then a stated
+  decision rather than the absence of one."
+  [{:keys [read-head! write-head! sign-fn verify-fn issuer accept-issuer?]}]
   (doseq [[k v] {:read-head! read-head! :write-head! write-head!
                  :sign-fn sign-fn :verify-fn verify-fn}]
     (when-not (ifn? v)
@@ -120,7 +156,8 @@
     (throw (ex-info "signed-head ref store requires an issuer"
                     {:type :kotobase.storage/invalid-configuration
                      :missing :issuer})))
-  (->SignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer))
+  (->SignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer
+                        (or accept-issuer? #(= issuer %))))
 
 (defn forked?
   "True when `a` and `b` are different heads claiming the same sequence — the
@@ -150,10 +187,13 @@
 ;; loss check into a coin flip.
 #?(:cljs
    (defn- verify-chain-async
-     [head verify-fn]
+     [head ref-name accept-issuer? verify-fn]
      (if-not (and (map? head)
                   (= head-version (get head "v"))
-                  (integer? (get head "seq")))
+                  (integer? (get head "seq"))
+                  ;; before the crypto, not after: a head addressed elsewhere
+                  ;; must not reach a verify that would say yes
+                  (addressed-to? head ref-name accept-issuer?))
        (js/Promise.resolve nil)
        (-> (js/Promise.resolve
             (verify-fn (head-record {:ref-name (get head "ref")
@@ -166,11 +206,12 @@
            (.then (fn [ok?] (when ok? head)))))))
 
 #?(:cljs
-   (defrecord AsyncSignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer]
+   (defrecord AsyncSignedHeadRefStore [read-head! write-head! sign-fn verify-fn issuer
+                                       accept-issuer?]
      storage/IRefStore
      (-read-ref [_ ref-name]
        (-> (js/Promise.resolve (read-head! ref-name))
-           (.then #(verify-chain-async % verify-fn))
+           (.then #(verify-chain-async % ref-name accept-issuer? verify-fn))
            (.then (fn [head]
                     (when head
                       {:cid (get head "cid") :version (get head "seq")})))))
@@ -190,7 +231,7 @@
                                (js/Promise.resolve
                                 (write-head! ref-name (assoc record "sig" sig)))))
                       (.then (fn [_] (js/Promise.resolve (read-head! ref-name))))
-                      (.then (fn [h] (verify-chain-async h verify-fn)))
+                      (.then (fn [h] (verify-chain-async h ref-name accept-issuer? verify-fn)))
                       (.then (fn [after]
                                (if (and after
                                         (= seq' (get after "seq"))
@@ -207,8 +248,9 @@
    (defn async-open
      "`open` for a Promise-returning pointer. Same ports, same guarantees, same
      `:single-writer-ref` profile — a signature still proves authorship rather
-     than exclusivity, and awaiting the write does not change that."
-     [{:keys [read-head! write-head! sign-fn verify-fn issuer]}]
+     than exclusivity, and awaiting the write does not change that. Takes the
+     same optional `:accept-issuer?`, with the same strict default; see `open`."
+     [{:keys [read-head! write-head! sign-fn verify-fn issuer accept-issuer?]}]
      (doseq [[k v] {:read-head! read-head! :write-head! write-head!
                     :sign-fn sign-fn :verify-fn verify-fn}]
        (when-not (ifn? v)
@@ -219,4 +261,5 @@
        (throw (ex-info "signed-head ref store requires an issuer"
                        {:type :kotobase.storage/invalid-configuration
                         :missing :issuer})))
-     (->AsyncSignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer)))
+     (->AsyncSignedHeadRefStore read-head! write-head! sign-fn verify-fn issuer
+                                (or accept-issuer? #(= issuer %)))))

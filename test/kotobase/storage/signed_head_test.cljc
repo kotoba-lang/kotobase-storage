@@ -123,3 +123,66 @@
       ;; passing run that looked identical to a linearizable one would be the
       ;; suite lending this store a guarantee it explicitly refuses to make.
       (is (= {:profile :single-writer-ref :concurrency :not-claimed} result)))))
+
+;; ── what an untrusted host can actually do (ADR-2608047000) ────────────────
+;;
+;; Every head below is GENUINELY SIGNED. Nothing here forges a signature,
+;; because forging one was never the attack: the attack is that a valid
+;; signature was being read as authority over a ref it says nothing about.
+;;
+;; `open-verifier` is the natural implementation of `verify-fn` — "this
+;; signature is valid for the key it names" — as opposed to the one the tests
+;; above happen to use, which also pins the issuer. The library must not
+;; depend on every caller having independently thought of that.
+
+(defn- open-verifier []
+  {:sign-fn (fn [record] ["sig" (hash record)])
+   :verify-fn (fn [record sig _issuer] (= sig ["sig" (hash record)]))})
+
+(defn- open-store [issuer & [opts]]
+  (let [p (pointer)
+        s (open-verifier)]
+    (assoc (merge p s)
+           :store (sh/open (merge (select-keys p [:read-head! :write-head!])
+                                  {:sign-fn (:sign-fn s)
+                                   :verify-fn (:verify-fn s)
+                                   :issuer issuer}
+                                  opts)))))
+
+(deftest a-head-for-another-ref-is-not-this-refs-head
+  (let [{:keys [store state]} (open-store "alice")]
+    (storage/-compare-and-set-ref! store "main" nil "cid-a")
+    (let [head (get @state "main")]
+      (testing "the host answers a read for `other` with `main`'s real head"
+        (swap! state assoc "other" head)
+        (is (nil? (storage/-read-ref store "other"))
+            "a genuinely signed head addressed to a different ref is not this ref's head"))
+      (testing "and `main` itself is unaffected"
+        (is (= "cid-a" (:cid (storage/-read-ref store "main"))))))))
+
+(deftest a-head-from-an-unaccepted-issuer-is-refused
+  (let [{:keys [store state sign-fn]} (open-store "alice")]
+    (storage/-compare-and-set-ref! store "main" nil "cid-a")
+    (testing "a head signed by someone else's key, for this exact ref, at a higher seq"
+      (let [record (sh/head-record {:ref-name "main" :seq 99 :cid "cid-mallory"
+                                    :prev "cid-a" :issuer "mallory"})]
+        (swap! state assoc "main" (assoc record "sig" (sign-fn record)))
+        (is (nil? (storage/-read-ref store "main"))
+            "a valid signature by an unaccepted issuer is not authority over this ref")))))
+
+(deftest accept-issuer?-is-the-stated-way-to-widen-it
+  ;; Rotation and deliberate hand-off are real; they are a decision the
+  ;; deployment states, not the absence of a check.
+  (let [{:keys [store state sign-fn]}
+        (open-store "alice" {:accept-issuer? #{"alice" "alice-2026"}})]
+    (storage/-compare-and-set-ref! store "main" nil "cid-a")
+    (let [record (sh/head-record {:ref-name "main" :seq 7 :cid "cid-rotated"
+                                  :prev "cid-a" :issuer "alice-2026"})]
+      (swap! state assoc "main" (assoc record "sig" (sign-fn record)))
+      (is (= "cid-rotated" (:cid (storage/-read-ref store "main"))))
+      (is (= 7 (:version (storage/-read-ref store "main")))))
+    (testing "and an issuer outside the set is still refused"
+      (let [record (sh/head-record {:ref-name "main" :seq 8 :cid "cid-mallory"
+                                    :prev "cid-rotated" :issuer "mallory"})]
+        (swap! state assoc "main" (assoc record "sig" (sign-fn record)))
+        (is (nil? (storage/-read-ref store "main")))))))
