@@ -28,3 +28,12 @@ jobs:
       # oracle on purpose.
       - name: async contract oracles
         run: nbb --classpath "src:test" test/run.cljs
+
+      # The large-object plane, which the JVM/sync suite structurally cannot
+      # cover: presigning is HMAC over a canonical request, the only SHA-256
+      # on a Worker is `crypto.subtle`, and that is async -- so the sync
+      # object contract can only ever accept a store that signs nothing.
+      # Its oracles are three views of one hazard: a grant that constrains
+      # nothing.
+      - name: async large-object contract oracles
+        run: nbb --classpath "src:test" test/object_run.cljs
