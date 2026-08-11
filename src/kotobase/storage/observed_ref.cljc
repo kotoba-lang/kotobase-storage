@@ -109,12 +109,18 @@
   storage/IRefStore
   (-read-ref [_ ref-name]
     (observe! observations ref-name (storage/-read-ref inner ref-name)))
-  (-compare-and-set-ref! [_ ref-name expected next]
-    (let [result (storage/-compare-and-set-ref! inner ref-name expected next)
-          current (when (or (:current result) (some? (:version result)))
-                    {:cid (:current result) :version (:version result)})]
-      (when current (observe! observations ref-name current))
-      result))
+  (-compare-and-set-ref! [this ref-name expected next]
+    ;; Guard BEFORE mutation. A replayed head can carry the expected CID at an
+    ;; older sequence; delegating first would publish onto the rollback fork
+    ;; and only then discover the violation.
+    (let [before (storage/-read-ref this ref-name)]
+      (if (not= expected (:cid before))
+        {:published? false :current (:cid before) :version (:version before)}
+        (let [result (storage/-compare-and-set-ref! inner ref-name expected next)
+              current (when (or (:current result) (some? (:version result)))
+                        {:cid (:current result) :version (:version result)})]
+          (when current (observe! observations ref-name current))
+          result))))
   storage/IBackendCapabilities
   (-capabilities [_] (storage/-capabilities inner)))
 
@@ -160,19 +166,26 @@
      (-read-ref [_ ref-name]
        (-> (js/Promise.resolve (storage/-read-ref inner ref-name))
            (.then #(observe-async! observations ref-name %))))
-     (-compare-and-set-ref! [_ ref-name expected next]
-       (-> (js/Promise.resolve
-            (storage/-compare-and-set-ref! inner ref-name expected next))
+     (-compare-and-set-ref! [this ref-name expected next]
+       (-> (storage/-read-ref this ref-name)
            (.then
-            (fn [result]
-              (let [current (when (or (:current result)
-                                      (some? (:version result)))
-                              {:cid (:current result)
-                               :version (:version result)})]
-                (if current
-                  (-> (observe-async! observations ref-name current)
-                      (.then (fn [_] result)))
-                  result))))))
+            (fn [before]
+              (if (not= expected (:cid before))
+                {:published? false :current (:cid before)
+                 :version (:version before)}
+                (-> (js/Promise.resolve
+                     (storage/-compare-and-set-ref! inner ref-name expected next))
+                    (.then
+                     (fn [result]
+                       (let [current
+                             (when (or (:current result)
+                                       (some? (:version result)))
+                               {:cid (:current result)
+                                :version (:version result)})]
+                         (if current
+                           (-> (observe-async! observations ref-name current)
+                               (.then (fn [_] result)))
+                           result))))))))))
      storage/IBackendCapabilities
      (-capabilities [_] (storage/-capabilities inner))))
 

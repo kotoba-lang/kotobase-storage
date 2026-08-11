@@ -268,7 +268,17 @@
                  (storage/-read-ref guarded "main")))
         (.then (fn [head]
                  (expect (= {:cid "cid-8" :version 8} head)
-                         "async observed ref advances on a verified higher sequence"))))))
+                         "async observed ref advances on a verified higher sequence")
+                 ;; The CID still matches the caller's expected value, but the
+                 ;; signed sequence was replayed. Rejection must precede CAS.
+                 (reset! remote {:cid "cid-8" :version 2})
+                 (expect-observation-rejection
+                  (storage/-compare-and-set-ref! guarded "main" "cid-8" "cid-9")
+                  :rollback
+                  "async observed ref rejects rollback before write")))
+        (.then (fn [_]
+                 (expect (= {:cid "cid-8" :version 2} @remote)
+                         "async rejected rollback write has no remote side effect"))))))
 
 (defn- expect-mismatch
   "A tampered block must REJECT the promise. Resolving without it would look

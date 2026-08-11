@@ -55,6 +55,21 @@
     (reset! remote nil)
     (is (= :rollback (problem-of #(storage/-read-ref guarded "main"))))))
 
+(deftest rollback-is-rejected-before-a-write-can-mutate-the-remote
+  (let [remote (atom {:cid "cid-7" :version 7})
+        guarded (observed/open
+                 {:inner (->RefOracle remote)
+                  :observations (observed/memory-observation-store)})]
+    (storage/-read-ref guarded "main")
+    ;; Same expected CID, replayed at an older sequence. A CID-only precondition
+    ;; would accept this and publish onto the rollback fork.
+    (reset! remote {:cid "cid-7" :version 2})
+    (is (= :rollback
+           (problem-of
+            #(storage/-compare-and-set-ref! guarded "main" "cid-7" "cid-8"))))
+    (is (= {:cid "cid-7" :version 2} @remote)
+        "the rejected write has no remote side effect")))
+
 (deftest ref-capabilities-are-delegated-not-invented
   (let [guarded (observed/open
                  {:inner (->RefOracle (atom nil))
