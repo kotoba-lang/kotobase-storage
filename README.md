@@ -173,6 +173,19 @@ Puts are not verified: the bytes on a put came from this process, and a
 caller that computes its own CIDs wrongly builds a store that fails its own
 reads, loudly, at the same seam.
 
+# Durable rollback guard
+
+`kotobase.storage.observed-ref` decorates an already authenticated, sequenced
+ref with a trusted durable last-seen store. The observation store has its own
+CAS contract, so concurrent browser tabs or processes cannot overwrite a newer
+observation with an older one. A lower sequence, a different CID at the same
+sequence, and disappearance after first observation fail closed as rollback or
+equivocation. Use `open` for synchronous hosts and `async-open` for Workers.
+
+This is not signature verification and does not replace logical commit
+ancestry: authenticate the ref first, apply this physical discovery guard, then
+apply `kotobase.engine.frontier` at the logical commit boundary.
+
 ## Test
 
 ```sh

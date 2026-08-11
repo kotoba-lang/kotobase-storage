@@ -18,6 +18,7 @@
   precondition."
   (:require [kotobase.storage.async-contract :as contract]
             [kotobase.storage.core :as storage]
+            [kotobase.storage.observed-ref :as observed]
             [kotobase.storage.signed-head :as sh]
             [kotobase.storage.verify :as verify]))
 
@@ -208,6 +209,77 @@
   (let [data (ex-data error)]
     (if (= :sci/error (:type data)) (recur (ex-cause error)) data)))
 
+;; ── durable last-seen rollback guard, on the Worker path ───────────────────
+
+(defrecord AsyncObservations [state]
+  observed/IObservationStore
+  (-read-observation [_ name] (resolved (get @state name)))
+  (-compare-and-set-observation! [_ name expected next]
+    (let [current (get @state name)]
+      (if (= expected current)
+        (do (swap! state assoc name next)
+            (resolved {:stored? true :current next}))
+        (resolved {:stored? false :current current})))))
+
+(defrecord AsyncSequencedRef [head]
+  storage/IRefStore
+  (-read-ref [_ _] (resolved @head))
+  (-compare-and-set-ref! [_ _ expected next]
+    (let [current @head]
+      (if (= expected (:cid current))
+        (let [candidate {:cid next :version (inc (or (:version current) -1))}]
+          (reset! head candidate)
+          (resolved {:published? true :current next
+                     :version (:version candidate)}))
+        (resolved {:published? false :current (:cid current)
+                   :version (:version current)}))))
+  storage/IBackendCapabilities
+  (-capabilities [_] #{:conditional-ref :single-writer-ref}))
+
+(defn- expect-observation-rejection [promise problem label]
+  (-> promise
+      (.then (fn [value]
+               (js/console.error
+                (str "FAIL: " label " -- resolved: " (pr-str value)))
+               (swap! failures inc)))
+      (.catch (fn [error]
+                (expect (= problem (:problem (cause-data error))) label)))))
+
+(defn- observed-ref-oracles []
+  (let [remote (atom {:cid "cid-7" :version 7})
+        guarded (observed/async-open
+                 {:inner (->AsyncSequencedRef remote)
+                  :observations (->AsyncObservations (atom {}))})]
+    (-> (storage/-read-ref guarded "main")
+        (.then (fn [head]
+                 (expect (= {:cid "cid-7" :version 7} head)
+                         "async observed ref initializes durable last-seen")
+                 (reset! remote {:cid "cid-3" :version 3})
+                 (expect-observation-rejection
+                  (storage/-read-ref guarded "main") :rollback
+                  "async observed ref rejects a valid older sequence")))
+        (.then (fn [_]
+                 (reset! remote {:cid "cid-fork" :version 7})
+                 (expect-observation-rejection
+                  (storage/-read-ref guarded "main") :equivocation
+                  "async observed ref rejects same-sequence equivocation")))
+        (.then (fn [_]
+                 (reset! remote {:cid "cid-8" :version 8})
+                 (storage/-read-ref guarded "main")))
+        (.then (fn [head]
+                 (expect (= {:cid "cid-8" :version 8} head)
+                         "async observed ref advances on a verified higher sequence")
+                 ;; The CID still matches the caller's expected value, but the
+                 ;; signed sequence was replayed. Rejection must precede CAS.
+                 (reset! remote {:cid "cid-8" :version 2})
+                 (expect-observation-rejection
+                  (storage/-compare-and-set-ref! guarded "main" "cid-8" "cid-9")
+                  :rollback
+                  "async observed ref rejects rollback before write")))
+        (.then (fn [_]
+                 (expect (= {:cid "cid-8" :version 2} @remote)
+                         "async rejected rollback write has no remote side effect"))))))
+
 (defn- expect-mismatch
   "A tampered block must REJECT the promise. Resolving without it would look
   to a tree walk exactly like a missing node."
@@ -309,6 +381,7 @@
                              :concurrency :not-claimed})))
       (.then (fn [_] (async-addressing-oracles)))
       (.then (fn [_] (verify-oracles)))
+      (.then (fn [_] (observed-ref-oracles)))
       (.then (fn [_]
                (if (zero? @failures)
                  (println "async contract oracles: all green")
