@@ -116,6 +116,53 @@
   nothing to be conditional about."
   #{:immutable-blocks :cid-addressed-read})
 
+(def block-profiles
+  "WHERE a block physically lives — the question `IBlockStore` never asked.
+
+  `-get-blocks` describes the operation, not the layout, and the layout is
+  what a read costs. One object per CID pays one round trip per block; a
+  store that packs blocks into CARv2 archives pays one per range. The two are
+  different stores with the same protocol, and a caller cannot tell by trying.
+
+  - `:block-per-object` — one immutable object per CID. Every provider that
+    existed before 2026-08-16 is this.
+
+  - `:packed-blocks` — blocks live inside CARv2 packs and are fetched by byte
+    range. Such a store MUST also declare `:range-read`: without it the only
+    possible implementation is to fetch a whole pack to return one block,
+    which cuts round trips and multiplies transfer — a failure that reports
+    success.
+
+  Superproject ADR-2608160100. Unlike `ref-profiles` this is not yet
+  mandatory, because every existing provider predates it and declaring
+  nothing must not become a lie about them. **Undeclared is not a default.**
+  It is an unanswered question, and `block-profile` returns nil for it —
+  code that needs the answer calls `validate-block-profile!` and refuses."
+  #{:block-per-object :packed-blocks})
+
+(defn block-profile
+  "Which of `block-profiles` this store declares, or nil when it declares
+  none or more than one. nil means unanswered, not `:block-per-object`."
+  [store]
+  (let [declared (filter (-capabilities store) block-profiles)]
+    (when (= 1 (count declared)) (first declared))))
+
+(defn packed?
+  "True when the store claims its blocks live in packs and are read by range."
+  [store]
+  (= :packed-blocks (block-profile store)))
+
+(defn validate-block-profile!
+  "Demand an answer. For callers whose read strategy depends on the layout —
+  a pack-aware reader cannot treat an unanswered store as either kind."
+  [store]
+  (when-not (block-profile store)
+    (throw (ex-info "Kotobase block store must declare exactly one block profile"
+                    {:type :kotobase.storage/undeclared-block-profile
+                     :expected block-profiles
+                     :declared (set (filter (-capabilities store) block-profiles))})))
+  store)
+
 (defn block-backend?
   "True when `value` can serve blocks, whether or not it can serve refs."
   [value]
@@ -135,6 +182,13 @@
        (throw (ex-info "Kotobase block store lacks required capabilities"
                        {:type :kotobase.storage/missing-capabilities
                         :missing (set missing)}))))
+   ;; Coherence, not a new requirement: this can only fire on a store that
+   ;; opted into `:packed-blocks`, so no existing provider changes behaviour.
+   (let [caps (-capabilities backend)]
+     (when (and (caps :packed-blocks) (not (caps :range-read)))
+       (throw (ex-info "Kotobase block store declares :packed-blocks without :range-read"
+                       {:type :kotobase.storage/packed-without-range-read
+                        :declared (set caps)}))))
    backend))
 
 (defrecord ComposedBackend [blocks refs]

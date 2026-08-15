@@ -35,6 +35,33 @@ silent: an ignored precondition returns success.
 `storage/linearizable?` is the predicate to branch on. Testing for
 `:conditional-ref` distinguishes nothing — every backend has it.
 
+## And one block profile: where the bytes physically are
+
+`IBlockStore` describes the operation, not the layout, and the layout is what
+a read costs. One object per CID pays one round trip per block. A store that
+packs blocks into CARv2 archives pays one per *range*, and can return a whole
+commit — or a whole novelty chain — from a single request. The two implement
+the protocol identically, so a caller cannot find out by trying.
+
+| profile | meaning |
+|---|---|
+| `:block-per-object` | one immutable object per CID |
+| `:packed-blocks` | blocks live inside CARv2 packs (`io-ipld-car`), fetched by byte range |
+
+`:packed-blocks` **requires `:range-read`**. Without it the only possible
+implementation is to fetch a whole pack to return one block: fewer round trips,
+far more bytes, and it reports success. `validate-block-store!` refuses that
+combination — a check that can only fire on a store which opted in, so nothing
+written before 2026-08-16 changes behaviour.
+
+Unlike the ref profile this one is **not yet mandatory**, because every
+existing provider predates the question. That makes the nil case load-bearing:
+`block-profile` returns nil for an undeclared store and **nil is not
+`:block-per-object`** — it is an unanswered question. Code whose read strategy
+depends on the answer calls `validate-block-profile!`, which refuses silence.
+
+Superproject ADR-2608160100 has the layering and the measurement behind it.
+
 ## The suite races writers, and can prove it
 
 The conformance suite has two halves.
