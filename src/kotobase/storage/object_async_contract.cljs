@@ -65,6 +65,41 @@
 
 ;; ── proxied ─────────────────────────────────────────────────────────────────
 
+(defn- verify-range-read
+  "The half that only runs for a store implementing `IRangeRead`.
+
+  It exists in BOTH suites deliberately. The sync suite runs on the JVM and
+  the async one is what every Worker provider actually runs, so a range
+  check that lived only in the first would be a check the deployed path
+  never took -- and the boundary it guards (HTTP Range is inclusive, this
+  protocol is half-open) is one a provider gets wrong exactly there, in the
+  header it writes."
+  [store check]
+  (-> (js/Promise.resolve (object/-put-object! store cid-a (bytes-of 1 2 3)))
+      (.then (fn [_] (object/-get-object-range store cid-a 0 3)))
+      (.then (fn [b]
+               (check (= [1 2 3] (vec b))
+                      "a full-width range equals the whole object" {:got (vec b)})
+               (object/-get-object-range store cid-a 0 1)))
+      (.then (fn [b]
+               (check (= [1] (vec b))
+                      "the range is HALF-OPEN: [0,1) is one byte, not two"
+                      {:got (vec b)})
+               (object/-get-object-range store cid-a 1 3)))
+      (.then (fn [b]
+               (check (= [2 3] (vec b))
+                      "an interior range starts where it says" {:got (vec b)})
+               (object/-get-object-range store cid-a 0 99)))
+      (.then (fn [b]
+               (check (= [1 2 3] (vec b))
+                      "a range past the end returns the overlap, as HTTP 206 does"
+                      {:got (vec b)})
+               (object/-get-object-range store cid-b 0 1)))
+      (.then (fn [b]
+               (check (nil? b)
+                      "a range of an object nobody stored is nil" {:got b})
+               (object/-delete-object! store cid-a)))))
+
 (defn- verify-proxied [store check]
   (-> (js/Promise.resolve (object/-stat-object store cid-a))
       (.then (fn [stat]
@@ -159,8 +194,18 @@
                    (if (object/presigned? store)
                      (verify-presigned store check)
                      (verify-proxied store check))))
+          (.then (fn [_]
+                   (when (object/range-read? store)
+                     (verify-range-read store check))))
           (.then (fn [_] {:checks (tally) :profile profile
-                          :deletes (object/deletes? store)}))))
+                          :deletes (object/deletes? store)
+                          ;; `:not-claimed` and `:verified` are different
+                          ;; words on purpose: a passing run must not read
+                          ;; as a guarantee the store never made.
+                          :range-read (if (object/range-read? store)
+                                        :verified :not-claimed)
+                          :range-grant (if (object/range-grant? store)
+                                         :declared :not-claimed)}))))
     (catch :default e (js/Promise.reject e))))
 
 (defn verify!

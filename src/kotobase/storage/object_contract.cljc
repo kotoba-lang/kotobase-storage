@@ -110,4 +110,7 @@
    ;; Reported the same way the ref suite reports concurrency: a passing run
    ;; must not read as a guarantee the store never made. `:not-claimed` and
    ;; `:verified` are different words on purpose.
-   :range-read (if (object/range-read? store) :verified :not-claimed)})
+   :range-read (if (object/range-read? store) :verified :not-claimed)
+   ;; Declared, not verified: nothing here can check a property of a URL
+   ;; that is fetched somewhere else.
+   :range-grant (if (object/range-grant? store) :declared :not-claimed)})

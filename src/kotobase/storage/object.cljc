@@ -72,8 +72,26 @@
 (def required-capabilities #{:large-objects})
 
 (def optional-capabilities
+  "Two of these are about ranges and they are NOT the same claim.
+
+  `:range-grant` is a property of the URL this store hands out: the caller
+  fetches the range itself, directly from the endpoint, and the bytes never
+  enter this process. That is the meaning `:range-read` carried when this
+  set was first written, and it is the one a presigned store can make.
+
+  `:range-read` is a property of this store: it will return `[start, end)`
+  itself, through `IRangeRead`. A packed block store needs THIS one — it has
+  to hold the bytes to parse a CAR frame out of them — and a presigned store
+  that can only hand out URLs cannot make the claim by having a signing key.
+
+  They were conflated on 2026-08-16 when the pack plane gave `:range-read`
+  an operation, which silently redefined a word the S3 adapter was already
+  declaring correctly under the old meaning. Splitting them is the fix; the
+  old word keeps the new, narrower meaning because that is the one with a
+  protocol behind it, and the grant property gets the name that says grant."
   #{:object-delete   ; -delete-object! actually removes the bytes
-    :range-read      ; a get grant honours an HTTP Range
+    :range-read      ; this store implements IRangeRead
+    :range-grant     ; a get grant it hands out honours an HTTP Range
     :multipart-put}) ; objects larger than one part can be uploaded
 
 (defn object-store? [value]
@@ -99,6 +117,17 @@
   [store]
   (and (contains? (-object-capabilities store) :range-read)
        (satisfies? IRangeRead store)))
+
+(defn range-grant?
+  "True when a GET grant this store hands out honours an HTTP `Range`.
+
+  Nothing here can verify that — it is a statement about the endpoint the
+  URL points at, and the fetch happens somewhere else entirely. Which is
+  exactly why it is a different word from `:range-read`: one is checkable
+  here and one is not, and a caller deciding whether it can read part of an
+  object needs to know which kind of promise it is holding."
+  [store]
+  (contains? (-object-capabilities store) :range-grant))
 
 (defn validate-object-store!
   "Validate a large-object provider, or throw.
