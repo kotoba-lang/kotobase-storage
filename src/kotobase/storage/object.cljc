@@ -153,10 +153,19 @@
                          {:type :kotobase.storage/undeclared-transfer-profile
                           :expected transfer-profiles
                           :declared (set (filter caps transfer-profiles))})))
-       (when-not (satisfies? (if (= :presigned-transfer profile)
-                               IPresignedTransfer
-                               IProxiedTransfer)
-                             store)
+       ;; The branch is on the RESULT of two `satisfies?` calls, not on which
+       ;; protocol gets passed to one. In ClojureScript `satisfies?` is a
+       ;; macro that resolves its protocol argument at compile time, so
+       ;; `(satisfies? (if ... A B) store)` is not a slightly awkward spelling
+       ;; of the same thing — it fails to macroexpand, and the whole namespace
+       ;; stops compiling. It reads as correct because on the JVM `satisfies?`
+       ;; is an ordinary function and the computed form works there, as it
+       ;; does under nbb's interpreter; the toolchain that rejects it is
+       ;; shadow-cljs, which is the one that builds the Workers. Keep the two
+       ;; calls literal.
+       (when-not (if (= :presigned-transfer profile)
+                   (satisfies? IPresignedTransfer store)
+                   (satisfies? IProxiedTransfer store))
          (throw (ex-info "Kotobase large-object store declares a transfer profile it does not implement"
                          {:type :kotobase.storage/transfer-profile-mismatch
                           :profile profile})))

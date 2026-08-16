@@ -21,4 +21,30 @@
   ;; every provider in this family actually deploys on.
   :cljs-test {:extra-paths ["test"]
               :extra-deps {org.clojure/clojurescript
-                           {:mvn/version "1.11.132"}}}}}
+                           {:mvn/version "1.11.132"}}}
+
+  ;; `clojure -M:cljs-compile`
+  ;;
+  ;; Not a third test suite — it runs no assertions. It asks the one question
+  ;; neither existing gate can: does this namespace COMPILE with the
+  ;; ClojureScript compiler.
+  ;;
+  ;; `clojure -M:test` runs on the JVM and `nbb test/run.cljs` runs on SCI,
+  ;; and in both of those `satisfies?` is an ordinary function. In compiled
+  ;; ClojureScript it is a macro that resolves its protocol argument at
+  ;; compile time, so a computed protocol is not a slower spelling of the
+  ;; same thing — it is a namespace that does not build. That shipped in
+  ;; `validate-object-store!` on 2026-08-16 and both gates stayed green,
+  ;; because an interpreter cannot fail a macroexpansion the way a compiler
+  ;; does. It was found by a downstream Worker build, which is the wrong
+  ;; place to find it: every provider in this family deploys through
+  ;; shadow-cljs, and this library sits under all of them.
+  :cljs-compile
+  {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}
+   :main-opts ["-m" "cljs.main" "-t" "node" "-O" "none"
+               "-d" "target/cljs-compile"
+               "-c" "kotobase.storage.object"
+               "-c" "kotobase.storage.core"
+               "-c" "kotobase.storage.observed-ref"
+               "-c" "kotobase.storage.signed-head"
+               "-c" "kotobase.storage.verify"]}}}
