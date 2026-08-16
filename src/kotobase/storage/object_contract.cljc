@@ -68,6 +68,30 @@
     (check (not= (:href put) (:href get))
            "the two grants are not the same URL by accident")))
 
+(defn- verify-range-read
+  "The half that only runs for a store claiming `:range-read`.
+
+  It exists because the pack plane's whole argument is that a reader can ask
+  for part of an object, and a capability with no operation behind it could
+  never be contradicted. Every check here is about a boundary: the format
+  puts a varint at the start of a frame, so one byte too few or too many is
+  not a slightly wrong answer, it is a parse that fails or succeeds wrongly."
+  [store check]
+  (object/-put-object! store cid-a (bytes-of [1 2 3]))
+  (check (= [1 2 3] (vec (object/-get-object-range store cid-a 0 3)))
+         "a full-width range equals the whole object")
+  (check (= [1] (vec (object/-get-object-range store cid-a 0 1)))
+         "the range is HALF-OPEN: [0,1) is one byte, not two")
+  (check (= [2 3] (vec (object/-get-object-range store cid-a 1 3)))
+         "an interior range starts where it says")
+  (check (= [1 2 3] (vec (object/-get-object-range store cid-a 0 99)))
+         "a range past the end returns the overlap, as HTTP 206 does")
+  (check (nil? (object/-get-object-range store cid-a 3 9))
+         "a range entirely past the end is nil, not empty bytes")
+  (check (nil? (object/-get-object-range store cid-b 0 1))
+         "a range of an object nobody stored is nil")
+  (object/-delete-object! store cid-a))
+
 (defn verify
   "Run the shared large-object contract."
   [store check]
@@ -79,5 +103,11 @@
   (if (object/presigned? store)
     (verify-presigned store check)
     (verify-proxied store check))
+  (when (and (object/range-read? store) (not (object/presigned? store)))
+    (verify-range-read store check))
   {:profile (object/transfer-profile store)
-   :deletes (object/deletes? store)})
+   :deletes (object/deletes? store)
+   ;; Reported the same way the ref suite reports concurrency: a passing run
+   ;; must not read as a guarantee the store never made. `:not-claimed` and
+   ;; `:verified` are different words on purpose.
+   :range-read (if (object/range-read? store) :verified :not-claimed)})

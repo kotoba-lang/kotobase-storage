@@ -5,7 +5,7 @@
   client to — which is exactly the case the profile exists to describe."
   (:require [kotobase.storage.object :as object]))
 
-(defrecord MemoryObjectStore [state delete?]
+(defrecord MemoryObjectStore [state delete? ranges]
   object/IObjectStore
   (-stat-object [_ cid]
     (object/assert-object-cid! cid)
@@ -30,14 +30,35 @@
     (object/assert-object-cid! cid)
     (get @state cid))
 
+  object/IRangeRead
+  (-get-object-range [_ cid start end]
+    (object/assert-object-cid! cid)
+    (when-let [bytes (get @state cid)]
+      ;; Counted, because the whole reason the pack plane exists is that
+      ;; requests are the cost. A store that cannot be asked how many it
+      ;; served cannot be used to check the claim.
+      (swap! ranges conj [cid start end])
+      (let [v (vec bytes)
+            hi (min end (count v))]
+        (when (< start hi)
+          #?(:clj (byte-array (subvec v start hi))
+             :cljs (js/Uint8Array. (clj->js (subvec v start hi))))))))
+
   object/IObjectCapabilities
   (-object-capabilities [_]
-    (cond-> #{:large-objects :proxied-transfer}
+    (cond-> #{:large-objects :proxied-transfer :range-read}
       delete? (conj :object-delete))))
 
 (defn memory-object-store
   ([] (memory-object-store {}))
   ([{:keys [delete?] :or {delete? true}}]
-   (->MemoryObjectStore (atom {}) delete?)))
+   (->MemoryObjectStore (atom {}) delete? (atom []))))
 
 (defn snapshot [^MemoryObjectStore store] @(.-state store))
+
+(defn ranges-served
+  "Every `[cid start end]` this store has answered, in order. The oracle for
+  a round-trip count."
+  [^MemoryObjectStore store] @(.-ranges store))
+
+(defn reset-ranges! [^MemoryObjectStore store] (reset! (.-ranges store) []))
