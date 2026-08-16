@@ -43,6 +43,23 @@
   (-put-object! [store cid bytes])
   (-get-object [store cid] "bytes, or nil."))
 
+(defprotocol IRangeRead
+  (-get-object-range [store cid start end]
+    "The bytes of `[start, end)` — HALF-OPEN, like `subs`.
+
+     HTTP `Range` is inclusive at both ends, so a provider sends
+     `bytes=<start>-<end - 1>`. Getting that conversion wrong costs or gains
+     exactly one byte, which for a CAR frame means a varint that parses and a
+     block that does not — so the boundary is stated here rather than left to
+     each provider.
+
+     Returns nil when the object does not exist. When the object is shorter
+     than `end` it returns the overlap, exactly as HTTP 206 does; a caller
+     that needs the full width must check the length it got. Returning fewer
+     bytes than asked WITHOUT the caller being able to tell is the failure
+     this signature is shaped to avoid — hence bytes or nil, never a short
+     read dressed as a complete one."))
+
 (defprotocol IObjectCapabilities
   (-object-capabilities [store] "A set of capability keywords."))
 
@@ -71,6 +88,17 @@
 
 (defn presigned? [store] (= :presigned-transfer (transfer-profile store)))
 (defn deletes? [store] (contains? (-object-capabilities store) :object-delete))
+
+(defn range-read?
+  "True when the store both declares `:range-read` and implements it.
+
+  Both halves are required because they fail differently: a declaration
+  without an implementation crashes the first pack read, and an
+  implementation without a declaration is invisible to every caller that
+  branches on capabilities. `validate-object-store!` refuses the first."
+  [store]
+  (and (contains? (-object-capabilities store) :range-read)
+       (satisfies? IRangeRead store)))
 
 (defn validate-object-store!
   "Validate a large-object provider, or throw.
@@ -102,7 +130,14 @@
                              store)
          (throw (ex-info "Kotobase large-object store declares a transfer profile it does not implement"
                          {:type :kotobase.storage/transfer-profile-mismatch
-                          :profile profile})))))
+                          :profile profile})))
+       ;; Same rule, one capability lower down: `:range-read` used to be a
+       ;; word with no operation behind it, so nothing could contradict it.
+       ;; A pack reader is the first caller that depends on it, and it must
+       ;; not discover the gap on the first fetch.
+       (when (and (caps :range-read) (not (satisfies? IRangeRead store)))
+         (throw (ex-info "Kotobase large-object store declares :range-read without IRangeRead"
+                         {:type :kotobase.storage/range-read-capability-mismatch})))))
    store))
 
 ;; ── grants ──────────────────────────────────────────────────────────────────

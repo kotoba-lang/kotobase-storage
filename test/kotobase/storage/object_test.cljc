@@ -24,7 +24,7 @@
   (let [{:keys [summary failures count]} (run (memory/memory-object-store))]
     (is (empty? failures) (pr-str failures))
     (is (pos? count))
-    (is (= {:profile :proxied-transfer :deletes true} summary))))
+    (is (= {:profile :proxied-transfer :deletes true :range-read :verified} summary))))
 
 (deftest a-store-that-cannot-delete-says-so
   (testing "and the suite accepts that answer — what it refuses is a store
@@ -32,7 +32,7 @@
             exactly what a tombstone over GET /ipfs/:cid would do"
     (let [{:keys [summary failures]} (run (memory/memory-object-store {:delete? false}))]
       (is (empty? failures) (pr-str failures))
-      (is (= {:profile :proxied-transfer :deletes false} summary)))))
+      (is (= {:profile :proxied-transfer :deletes false :range-read :verified} summary)))))
 
 ;; ── presigned stores ────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@
       (is (re-find #"blank cheque" (second (first failures))))))
   (let [{:keys [summary failures]} (run (->Presigned true))]
     (is (empty? failures) (pr-str failures))
-    (is (= {:profile :presigned-transfer :deletes false} summary))))
+    (is (= {:profile :presigned-transfer :deletes false :range-read :not-claimed} summary))))
 
 ;; ── declaration must match implementation ───────────────────────────────────
 
@@ -117,3 +117,40 @@
       (object/-put-object! store cid #?(:clj (byte-array [1 2 3])
                                         :cljs (js/Uint8Array. #js [1 2 3])))
       (is (true? (object/present? store cid))))))
+
+(deftest range-read-declared-without-the-operation-is-refused
+  (testing ":range-read used to be a word nothing could contradict. A pack
+            reader is the first caller that depends on it, and discovering
+            the gap on the first fetch is too late"
+    (let [claims-only (reify
+                        object/IObjectStore
+                        (-stat-object [_ _] nil)
+                        (-delete-object! [_ _] {:deleted? false :reason :not-supported})
+                        object/IProxiedTransfer
+                        (-put-object! [_ _ _] {:size-bytes 0})
+                        (-get-object [_ _] nil)
+                        object/IObjectCapabilities
+                        (-object-capabilities [_]
+                          #{:large-objects :proxied-transfer :range-read}))]
+      (is (false? (object/range-read? claims-only))
+          "the predicate wants both halves, so it already says no")
+      (is (= :kotobase.storage/range-read-capability-mismatch
+             (:type (try (object/validate-object-store! claims-only) nil
+                         (catch #?(:clj Exception :cljs :default) e (ex-data e)))))))))
+
+(deftest range-read-implemented-without-declaring-it-stays-invisible
+  (testing "allowed, but pointless — every caller branches on the capability.
+            Stated as a test so the asymmetry is deliberate, not an oversight"
+    (let [silent (reify
+                   object/IObjectStore
+                   (-stat-object [_ _] nil)
+                   (-delete-object! [_ _] {:deleted? false :reason :not-supported})
+                   object/IProxiedTransfer
+                   (-put-object! [_ _ _] {:size-bytes 0})
+                   (-get-object [_ _] nil)
+                   object/IRangeRead
+                   (-get-object-range [_ _ _ _] nil)
+                   object/IObjectCapabilities
+                   (-object-capabilities [_] #{:large-objects :proxied-transfer}))]
+      (is (some? (object/validate-object-store! silent)) "not an error")
+      (is (false? (object/range-read? silent)) "and not usable either"))))
