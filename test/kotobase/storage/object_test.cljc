@@ -24,7 +24,7 @@
   (let [{:keys [summary failures count]} (run (memory/memory-object-store))]
     (is (empty? failures) (pr-str failures))
     (is (pos? count))
-    (is (= {:profile :proxied-transfer :deletes true :range-read :verified} summary))))
+    (is (= {:profile :proxied-transfer :deletes true :range-read :verified :range-grant :not-claimed} summary))))
 
 (deftest a-store-that-cannot-delete-says-so
   (testing "and the suite accepts that answer — what it refuses is a store
@@ -32,7 +32,7 @@
             exactly what a tombstone over GET /ipfs/:cid would do"
     (let [{:keys [summary failures]} (run (memory/memory-object-store {:delete? false}))]
       (is (empty? failures) (pr-str failures))
-      (is (= {:profile :proxied-transfer :deletes false :range-read :verified} summary)))))
+      (is (= {:profile :proxied-transfer :deletes false :range-read :verified :range-grant :not-claimed} summary)))))
 
 ;; ── presigned stores ────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@
       (is (re-find #"blank cheque" (second (first failures))))))
   (let [{:keys [summary failures]} (run (->Presigned true))]
     (is (empty? failures) (pr-str failures))
-    (is (= {:profile :presigned-transfer :deletes false :range-read :not-claimed} summary))))
+    (is (= {:profile :presigned-transfer :deletes false :range-read :not-claimed :range-grant :not-claimed} summary))))
 
 ;; ── declaration must match implementation ───────────────────────────────────
 
@@ -154,3 +154,24 @@
                    (-object-capabilities [_] #{:large-objects :proxied-transfer}))]
       (is (some? (object/validate-object-store! silent)) "not an error")
       (is (false? (object/range-read? silent)) "and not usable either"))))
+
+(deftest a-range-grant-is-not-a-range-read
+  (testing "the S3 presigned store declares that the URL it hands out honours
+            Range. That is true, checkable nowhere here, and NOT the claim a
+            packed block store needs -- which is that this store will return
+            the bytes itself"
+    (let [grants-only (reify
+                        object/IObjectStore
+                        (-stat-object [_ _] nil)
+                        (-delete-object! [_ _] {:deleted? false :reason :not-supported})
+                        object/IProxiedTransfer
+                        (-put-object! [_ _ _] {:size-bytes 0})
+                        (-get-object [_ _] nil)
+                        object/IObjectCapabilities
+                        (-object-capabilities [_]
+                          #{:large-objects :proxied-transfer :range-grant}))]
+      (is (some? (object/validate-object-store! grants-only))
+          "declaring the grant property implements nothing and is still valid")
+      (is (true? (object/range-grant? grants-only)))
+      (is (false? (object/range-read? grants-only))
+          "and it does not get a packed block store past the door"))))

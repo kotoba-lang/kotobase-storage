@@ -60,6 +60,28 @@ existing provider predates the question. That makes the nil case load-bearing:
 `:block-per-object`** — it is an unanswered question. Code whose read strategy
 depends on the answer calls `validate-block-profile!`, which refuses silence.
 
+### Two words about ranges, and they are different claims
+
+| capability | claim | checkable here |
+|---|---|---|
+| `:range-read` | **this store** returns `[start, end)` itself, through `IRangeRead` | yes — `validate-object-store!` refuses a declaration without the protocol, and the conformance suite exercises the boundaries |
+| `:range-grant` | a GET **grant it hands out** honours an HTTP `Range`; the caller fetches, the bytes never enter this process | no — it is a property of the endpoint the URL points at |
+
+A packed block store needs `:range-read`: it has to hold the bytes to parse
+a CAR frame out of them. A presigned store with a signing key can offer
+`:range-grant` without being able to make the other claim at all.
+
+They were one word until 2026-08-16, when the pack plane gave `:range-read`
+an operation and silently redefined what the S3 adapter had been declaring
+correctly under the older, grant-shaped meaning. The old word kept the new
+meaning because that is the one with a protocol behind it.
+
+`-get-object-range` is **half-open** `[start, end)`. HTTP `Range` is
+inclusive at both ends, so a provider sends `bytes=<start>-<end - 1>`. The
+suite checks that boundary in both the sync and the async half, because the
+async one is what every Worker provider actually runs and a check that lived
+only on the JVM would be a check the deployed path never took.
+
 Superproject ADR-2608160100 has the layering and the measurement behind it.
 
 ## The suite races writers, and can prove it
