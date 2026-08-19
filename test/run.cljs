@@ -18,6 +18,8 @@
   precondition."
   (:require [kotobase.storage.async-contract :as contract]
             [kotobase.storage.core :as storage]
+            [kotobase.storage.memory :as mem]
+            [kotobase.storage.object-memory :as omem]
             [kotobase.storage.observed-ref :as observed]
             [kotobase.storage.signed-head :as sh]
             [kotobase.storage.verify :as verify]))
@@ -245,6 +247,28 @@
       (.catch (fn [error]
                 (expect (= problem (:problem (cause-data error))) label)))))
 
+(defn- record-accessor-oracles
+  "The test-support accessors, called on THIS runtime.
+
+  `snapshot`, `ranges-served` and `reset-ranges!` read a defrecord field.
+  They were written as host interop -- `(.-state store)` -- which resolves on
+  the JVM and returns `undefined` under SCI, so `@(.-state store)` threw
+  `No protocol method IDeref.-deref defined for type undefined`. Nothing here
+  caught it: the JVM suite was green because the JVM was never broken, and
+  this async suite was green because it never called them. A downstream repo
+  (kotobase-storage-pack) found it, 25 errors at once, on the day its own nbb
+  runner was first compared against its JVM one.
+
+  Keyword access works on every runtime because these are records. These four
+  lines exist so the next `.-` cannot come back unnoticed."
+  []
+  (let [o (omem/memory-object-store)
+        m (mem/memory-store)]
+    (expect (= {} (omem/snapshot o)) "object-memory snapshot reads its field on this runtime")
+    (expect (= [] (omem/ranges-served o)) "object-memory ranges-served reads its field on this runtime")
+    (expect (nil? (do (omem/reset-ranges! o) nil)) "object-memory reset-ranges! writes its field on this runtime")
+    (expect (map? (mem/snapshot m)) "memory snapshot reads its field on this runtime")))
+
 (defn- observed-ref-oracles []
   (let [remote (atom {:cid "cid-7" :version 7})
         guarded (observed/async-open
@@ -382,6 +406,7 @@
       (.then (fn [_] (async-addressing-oracles)))
       (.then (fn [_] (verify-oracles)))
       (.then (fn [_] (observed-ref-oracles)))
+      (.then (fn [_] (record-accessor-oracles)))
       (.then (fn [_]
                (if (zero? @failures)
                  (println "async contract oracles: all green")

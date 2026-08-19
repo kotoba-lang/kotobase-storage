@@ -54,11 +54,11 @@
   ([{:keys [delete?] :or {delete? true}}]
    (->MemoryObjectStore (atom {}) delete? (atom []))))
 
-(defn snapshot [^MemoryObjectStore store] @(.-state store))
+(defn snapshot [store] @(:state store))
 
 (defn ranges-served
   "Every `[cid start end]` this store has answered, in order. The oracle for
   a round-trip count."
-  [^MemoryObjectStore store] @(.-ranges store))
+  [store] @(:ranges store))
 
-(defn reset-ranges! [^MemoryObjectStore store] (reset! (.-ranges store) []))
+(defn reset-ranges! [store] (reset! (:ranges store) []))
