@@ -52,4 +52,4 @@
 (defn memory-store []
   (->MemoryStore (atom {:blocks {} :refs {}})))
 
-(defn snapshot [^MemoryStore store] @(.-state store))
+(defn snapshot [store] @(:state store))
