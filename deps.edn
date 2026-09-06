@@ -47,4 +47,5 @@
                "-c" "kotobase.storage.core"
                "-c" "kotobase.storage.observed-ref"
                "-c" "kotobase.storage.signed-head"
-               "-c" "kotobase.storage.verify"]}}}
+               "-c" "kotobase.storage.verify"
+               "-c" "kotobase.storage.ordered-map"]}}}
