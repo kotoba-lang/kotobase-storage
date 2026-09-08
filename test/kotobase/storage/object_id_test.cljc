@@ -3,7 +3,7 @@
   bytes with the same digest, so no registry is needed — AND that the two
   configurations where that stops being true fail closed instead of resolving
   to some other object."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [kotobase.storage.object-id :as oid]
             #?(:clj [multiformats.core :as mf])))
@@ -46,11 +46,11 @@
     (is (nil? (oid/cid->digest-hex "bafkrei")))
     (is (nil? (oid/cid->digest-hex nil)))
     (is (nil? (oid/digest-hex->cid "abc")) "not 32 bytes")
-    (is (nil? (oid/digest-hex->cid (str/upper-case hex-a)))
+    (is (nil? (oid/digest-hex->cid (str/upper hex-a)))
         "uppercase hex is a second spelling of the same digest; accepting it
          would let one object have two CIDs")))
 
-(defn- upper [s] (str/upper-case s))
+(defn- upper [s] (str/upper s))
 
 (deftest lfs-oid-forms
   (is (= {:digest-hex hex-a} (oid/parse-lfs-oid hex-a)) "batch API form")
