@@ -28,13 +28,13 @@
               :extra-deps {org.clojure/clojurescript
                            {:mvn/version "1.11.132"}}}
 
-  ;; `clojure -M:cljs-compile`
+  ;; `kbb -M:cljs-compile`
   ;;
   ;; Not a third test suite — it runs no assertions. It asks the one question
   ;; neither existing gate can: does this namespace COMPILE with the
   ;; ClojureScript compiler.
   ;;
-  ;; `clojure -M:test` runs on the JVM and `nbb test/run.cljk` runs on SCI,
+  ;; `kbb -M:test` runs on the JVM and `kbb --backend sci test/run.cljk` runs on SCI,
   ;; and in both of those `satisfies?` is an ordinary function. In compiled
   ;; ClojureScript it is a macro that resolves its protocol argument at
   ;; compile time, so a computed protocol is not a slower spelling of the
