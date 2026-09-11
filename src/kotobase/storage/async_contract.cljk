@@ -180,7 +180,7 @@
 
    Here rather than in each provider because the suite this replaces
    reported success by printing and exited 0 either way -- so every
-   provider's `test/run.cljs` was green by construction."
+   provider's `test/run.cljk` was green by construction."
   [backend label]
   (-> (verify backend)
       (.then (fn [result]

@@ -1,7 +1,7 @@
 (ns object-run
   "The async large-object contract, verified against its own oracles.
 
-  Same discipline as `test/run.cljs`: running the suite against a correct
+  Same discipline as `test/run.cljk`: running the suite against a correct
   store proves nothing about the suite. So this file also runs it against
   stores it MUST reject, and requires the rejection to come from the right
   check -- otherwise a suite that accepted everything would look identical
