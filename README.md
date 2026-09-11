@@ -238,8 +238,8 @@ apply `kotobase.engine.frontier` at the logical commit boundary.
 ## Test
 
 ```sh
-clojure -M:test                          # JVM, real threads
-nbb --classpath "src:test" test/run.cljk # async, with oracles
+kbb -M:test                          # JVM, real threads
+kbb --backend sci --classpath "src:test" test/run.cljk # async, with oracles
 ```
 
 Both, as CI runs them. `nbb` rather than `cljs.main -re node`: that runner
