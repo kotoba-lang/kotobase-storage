@@ -101,7 +101,7 @@ turn later — read-then-PUT, which is all an endpoint without a conditional
 write can offer — passes all eight sequential checks. One writer never
 observes the difference.
 
-`test/run.cljs` therefore runs the suite against three stores it must
+`test/run.cljk` therefore runs the suite against three stores it must
 **reject**, and requires the rejection to come from the right check:
 
 | oracle | caught by |
@@ -239,7 +239,7 @@ apply `kotobase.engine.frontier` at the logical commit boundary.
 
 ```sh
 clojure -M:test                          # JVM, real threads
-nbb --classpath "src:test" test/run.cljs # async, with oracles
+nbb --classpath "src:test" test/run.cljk # async, with oracles
 ```
 
 Both, as CI runs them. `nbb` rather than `cljs.main -re node`: that runner
