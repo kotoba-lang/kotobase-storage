@@ -5,7 +5,7 @@
   PutObject, so its CAS is last-write-wins and two writers are both told they
   won. B2 is a fine block store and an unusable ref store, and before this the
   choice was all of it or none of it."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.core :as storage]
             [kotobase.storage.memory :as memory]))
 
