@@ -2,7 +2,7 @@
   "The large-object port, and the two things it exists to make impossible:
   a store that reports a successful delete it did not perform, and a
   presigned PUT that binds nothing."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.object :as object]
             [kotobase.storage.object-contract :as contract]
             [kotobase.storage.object-memory :as memory]))

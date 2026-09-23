@@ -5,7 +5,7 @@
   read by byte range implement it identically and cost differently — one round
   trip per block versus one per range — and a caller cannot find out by
   trying. Superproject ADR-2608160100."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.core :as storage]))
 
 (defrecord Blocks [caps state]

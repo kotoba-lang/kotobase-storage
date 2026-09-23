@@ -1,5 +1,5 @@
 (ns kotobase.storage.observed-ref-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.core :as storage]
             [kotobase.storage.observed-ref :as observed]))
 

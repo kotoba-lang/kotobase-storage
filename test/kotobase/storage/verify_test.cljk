@@ -3,7 +3,7 @@
   be handed bytes that are not the bytes -- and, just as importantly, that a
   tampered block is not quietly turned into a missing one, because a tree walk
   cannot tell a missing node from a subtree that does not exist."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.core :as storage]
             [kotobase.storage.memory :as memory]
             [kotobase.storage.verify :as verify]

@@ -11,7 +11,7 @@
   They differ on exactly one key -- the one equal to the upper bound -- which
   is why a facade that took either as `range` would return a different row set
   depending on which substrate answered, with nothing in the result saying so."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.ordered-map :as om]))
 
 (defn- err [f]
