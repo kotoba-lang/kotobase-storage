@@ -47,7 +47,7 @@
   can change index roots while every visible row is identical, so agreement
   found here is agreement about ROWS and is not a claim about CIDs."
   (:refer-clojure :exclude [range])
-  (:require [clojure.set :as set]))
+  (:require [kotoba.lang.coll :as set]))
 
 ;; ── the five declarations ────────────────────────────────────────────────────
 
