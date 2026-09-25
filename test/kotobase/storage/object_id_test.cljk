@@ -3,7 +3,7 @@
   bytes with the same digest, so no registry is needed — AND that the two
   configurations where that stops being true fail closed instead of resolving
   to some other object."
-  (:require [kotoba.lang.text :as str]
+  (:require [kotoba.bytes :as kbytes] [kotoba.lang.text :as str]
             [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.object-id :as oid]
             #?(:clj [multiformats.core :as mf])))
@@ -28,7 +28,7 @@
                io-multiformats, which is byte-identical to
                `ipfs add --cid-version=1 --raw-leaves`"
        (doseq [payload ["" "hello\n" "the quick brown fox"]]
-         (let [bytes (.getBytes ^String payload "UTF-8")
+         (let [bytes (kbytes/utf8-bytes ^String payload)
                hex (mf/hexify (mf/sha256 bytes))]
            (is (= (mf/cidv1-raw bytes) (oid/digest-hex->cid hex))
                (str "CID assembly for " (pr-str payload)))

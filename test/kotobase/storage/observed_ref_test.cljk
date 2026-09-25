@@ -20,7 +20,7 @@
   (try
     (thunk)
     nil
-    (catch #?(:clj clojure.lang.ExceptionInfo :cljs js/Error) error
+    (catch js/Error error
       (:problem (ex-data error)))))
 
 (deftest durable-observation-rejects-replay-and-equivocation

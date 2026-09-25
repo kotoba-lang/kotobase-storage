@@ -75,12 +75,12 @@
 
 (deftest a-backend-must-declare-exactly-one-ref-profile
   (testing "none -- the old default, in which :conditional-ref implied nothing"
-    (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+    (is (thrown? js/Error
                  (storage/validate-backend!
                   (->NoProfile storage/required-capabilities)))))
   (testing "both -- claiming linearizable and single-writer at once says
             neither, and is likelier a merge artefact than a design"
-    (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+    (is (thrown? js/Error
                  (storage/validate-backend!
                   (->NoProfile (into storage/required-capabilities
                                      storage/ref-profiles))))))

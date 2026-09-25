@@ -3,7 +3,7 @@
   be handed bytes that are not the bytes -- and, just as importantly, that a
   tampered block is not quietly turned into a missing one, because a tree walk
   cannot tell a missing node from a subtree that does not exist."
-  (:require [kotoba.test :refer [deftest is testing]]
+  (:require [kotoba.bytes :as kbytes] [kotoba.test :refer [deftest is testing]]
             [kotobase.storage.core :as storage]
             [kotobase.storage.memory :as memory]
             [kotobase.storage.verify :as verify]
@@ -56,7 +56,7 @@
           swapped (bytes-of 9 9 9)
           cid (cid-of honest)
           store (verify/verifying-block-store (liar {cid swapped}) cid-of)]
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+      (is (thrown? js/Error
                    (storage/-get-blocks store [cid])))
       (let [data (try (storage/-get-blocks store [cid])
                       (catch #?(:clj Exception :cljs :default) e (ex-data e)))]
@@ -72,7 +72,7 @@
           cid-bad "cid:tampered"
           store (verify/verifying-block-store
                  (liar {(cid-of good) good cid-bad (bytes-of 7)}) cid-of)]
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+      (is (thrown? js/Error
                    (storage/-get-blocks store [(cid-of good) cid-bad]))))))
 
 ;; ── missing stays missing ───────────────────────────────────────────────────
@@ -132,7 +132,7 @@
       (is (false? (storage/ref-store? store)))
       (is (false? (storage/backend? store)))
       (is (true? (storage/block-backend? store)))
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+      (is (thrown? js/Error
                    (storage/validate-backend! store))))))
 
 ;; ── puts are pass-through, and a mis-keyed put surfaces on read ─────────────
@@ -147,16 +147,16 @@
               fails its OWN reads, loudly -- the same defect at the same seam,
               without hashing every write twice"
       (storage/put-block! store "cid:wrong" a)
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+      (is (thrown? js/Error
                    (storage/get-block store "cid:wrong"))))))
 
 ;; ── configuration fails closed ──────────────────────────────────────────────
 
 (deftest construction-refuses-a-store-or-a-hash-it-cannot-use
-  (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+  (is (thrown? js/Error
                (verify/verifying-block-store (liar {}) nil))
       "no cid-of means no verification, which is the thing being asked for")
-  (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+  (is (thrown? js/Error
                (verify/verifying-block-store {:not "a store"} cid-of))))
 
 (deftest an-async-store-in-the-sync-decorator-says-which-one-to-use
@@ -194,11 +194,11 @@
                injected function can be the real one, and io-multiformats is
                byte-identical to `ipfs add --cid-version=1 --raw-leaves`"
        (let [real-cid-of (fn [^bytes bs] (mf/cidv1-raw bs))
-             payload (.getBytes "the quick brown fox" "UTF-8")
+             payload (kbytes/utf8-bytes "the quick brown fox")
              cid (real-cid-of payload)
              honest (verify/verifying-block-store (liar {cid payload}) real-cid-of)
              lying (verify/verifying-block-store
-                    (liar {cid (.getBytes "the quick brown cat" "UTF-8")})
+                    (liar {cid (kbytes/utf8-bytes "the quick brown cat")})
                     real-cid-of)]
          (is (= {cid payload} (storage/-get-blocks honest [cid])))
          (is (thrown? clojure.lang.ExceptionInfo
