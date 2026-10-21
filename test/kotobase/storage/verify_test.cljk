@@ -56,7 +56,7 @@
           swapped (bytes-of 9 9 9)
           cid (cid-of honest)
           store (verify/verifying-block-store (liar {cid swapped}) cid-of)]
-      (is (thrown? js/Error
+      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                    (storage/-get-blocks store [cid])))
       (let [data (try (storage/-get-blocks store [cid])
                       (catch #?(:clj Exception :cljs :default) e (ex-data e)))]
@@ -72,7 +72,7 @@
           cid-bad "cid:tampered"
           store (verify/verifying-block-store
                  (liar {(cid-of good) good cid-bad (bytes-of 7)}) cid-of)]
-      (is (thrown? js/Error
+      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                    (storage/-get-blocks store [(cid-of good) cid-bad]))))))
 
 ;; ── missing stays missing ───────────────────────────────────────────────────
@@ -132,7 +132,7 @@
       (is (false? (storage/ref-store? store)))
       (is (false? (storage/backend? store)))
       (is (true? (storage/block-backend? store)))
-      (is (thrown? js/Error
+      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                    (storage/validate-backend! store))))))
 
 ;; ── puts are pass-through, and a mis-keyed put surfaces on read ─────────────
@@ -147,16 +147,16 @@
               fails its OWN reads, loudly -- the same defect at the same seam,
               without hashing every write twice"
       (storage/put-block! store "cid:wrong" a)
-      (is (thrown? js/Error
+      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                    (storage/get-block store "cid:wrong"))))))
 
 ;; ── configuration fails closed ──────────────────────────────────────────────
 
 (deftest construction-refuses-a-store-or-a-hash-it-cannot-use
-  (is (thrown? js/Error
+  (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                (verify/verifying-block-store (liar {}) nil))
       "no cid-of means no verification, which is the thing being asked for")
-  (is (thrown? js/Error
+  (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                (verify/verifying-block-store {:not "a store"} cid-of))))
 
 (deftest an-async-store-in-the-sync-decorator-says-which-one-to-use
