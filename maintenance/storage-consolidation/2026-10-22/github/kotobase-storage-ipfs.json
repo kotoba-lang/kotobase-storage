@@ -2168,5 +2168,67 @@
       ],
       "metadata-review": "Historical docs/config remain fully recoverable; actual merge commit is a default ancestor and every historical production source has an explicit successor binding."
     }
-  ]
+  ],
+  "repository-after-archive": {
+    "id": "R_kgDOTj1G2A",
+    "databaseId": 1312638680,
+    "nameWithOwner": "kotoba-lang/kotobase-storage-ipfs",
+    "isPrivate": false,
+    "isArchived": true,
+    "pushedAt": "2026-09-29T20:09:09Z",
+    "defaultBranchRef": {
+      "name": "main",
+      "target": {
+        "oid": "e4275a2f1ba3b6425bc03cef939aab610e43d540"
+      }
+    },
+    "heads": {
+      "totalCount": 3,
+      "nodes": [
+        {
+          "name": "codex/helia-kubo-interoperability",
+          "target": {
+            "oid": "b23a3741da34b42445b8b80eb41fc778099672e8"
+          }
+        },
+        {
+          "name": "jv/dot-on-paths",
+          "target": {
+            "oid": "6e1995de8c107af9e7439ee65226f595a5622f22"
+          }
+        },
+        {
+          "name": "main",
+          "target": {
+            "oid": "e4275a2f1ba3b6425bc03cef939aab610e43d540"
+          }
+        }
+      ]
+    },
+    "tags": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "openPRs": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "allPRs": {
+      "totalCount": 5
+    },
+    "openIssues": {
+      "totalCount": 0
+    },
+    "releases": {
+      "totalCount": 0
+    }
+  },
+  "archive-readback": {
+    "repository": "kotoba-lang/kotobase-storage-ipfs",
+    "action": "archive-readback",
+    "archived": true,
+    "source-and-refs-unchanged": true,
+    "qualified-main": "a831dda3f475fa944824ee703e69da077dc79a25",
+    "at": "2026-10-21T20:28:56.919040+00:00"
+  }
 }

@@ -1,7 +1,7 @@
 # ADR-0001: Co-locate independently selected storage provider sources
 
-Status: source placement accepted; merged-main qualification and retirement
-remain pending. Tracking: [JUN-267](https://linear.app/kotobalabs/issue/JUN-267).
+Status: source placement and merged-main local qualification accepted; seven
+legacy provider repositories archived after preservation guards. Tracking: [JUN-267](https://linear.app/kotobalabs/issue/JUN-267).
 
 Seven non-deployment adapter/decorator projects now share the existing
 `kotoba-lang/kotobase-storage` source owner. Each remains an opt-in project with
@@ -85,8 +85,8 @@ through byte-identical extension views. The inconsistent S3 npm lock now include
 Miniflare's exact undici 7.28.0 instead of the unrelated hoisted 7.29.0; every other
 entry and all direct dependency values remain unchanged. Seven provider source
 origins are checked in their declared JVM or public Kotoba CLI/SCI hosts; a source
-CLI lookup by itself is not runtime proof. Merged-main qualification still precedes
-retirement. Native/Wasm, live interoperability, production
+CLI lookup by itself is not runtime proof. These gates were subsequently
+reproduced on the source main identified below before retirement. Native/Wasm, live interoperability, production
 shard durability, signed-order admission and deployment are separate claims.
 Existing Actions remain disabled; no CI success is claimed.
 
@@ -105,3 +105,16 @@ No repository is archived or deleted by this source commit. Retirement requires
 merged-main verification, immediate source/ref/WIP rechecks, recovery proof and
 an explicit archive readback in the receipt. The original 239 consumer-pin
 holds and signed locks stay unchanged. Organization-wide review remains active.
+
+
+## Completed archive readback
+
+Source main `a831dda3f475fa944824ee703e69da077dc79a25` passed the reproduced
+host gates above and the repaired S3 `npm test` entry. All seven provider repos
+were then archived, with immediate GitHub readback proving ID, default, heads,
+tags and source timestamps unchanged. All114 refs and140 original file hashes
+restore/fsck again; the pack WIP patch still reproduces its exact original
+status. The original239 consumer-pin holds were freshly read and unchanged.
+The dated receipt records each before/after snapshot and qualification. Old Git
+URLs remain available; no deletion occurred. Existing Actions remain disabled,
+and the organization-wide review continues.
