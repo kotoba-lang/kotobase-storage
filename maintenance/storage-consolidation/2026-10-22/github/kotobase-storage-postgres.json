@@ -1,0 +1,54 @@
+{
+  "repository-before-archive": {
+    "id": "R_kgDOTj1GAA",
+    "databaseId": 1312638464,
+    "nameWithOwner": "kotoba-lang/kotobase-storage-postgres",
+    "isPrivate": false,
+    "isArchived": false,
+    "pushedAt": "2026-09-25T02:24:16Z",
+    "defaultBranchRef": {
+      "name": "main",
+      "target": {
+        "oid": "67902267ed1498314230f69a81961a703916cea4"
+      }
+    },
+    "heads": {
+      "totalCount": 1,
+      "nodes": [
+        {
+          "name": "main",
+          "target": {
+            "oid": "67902267ed1498314230f69a81961a703916cea4"
+          }
+        }
+      ]
+    },
+    "tags": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "openPRs": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "allPRs": {
+      "totalCount": 0
+    },
+    "openIssues": {
+      "totalCount": 0
+    },
+    "releases": {
+      "totalCount": 0
+    }
+  },
+  "closed-pulls": [],
+  "local-observation": {
+    "head": "67902267ed1498314230f69a81961a703916cea4",
+    "branch": "",
+    "status": "",
+    "stashes": [],
+    "worktrees": "worktree <github>/kotoba-lang/kotobase-storage-postgres\nHEAD 67902267ed1498314230f69a81961a703916cea4\ndetached",
+    "broken-worktree-metadata-kept-locally": false
+  },
+  "branch-reviews": []
+}

@@ -1,0 +1,54 @@
+{
+  "repository-before-archive": {
+    "id": "R_kgDOTj1HAA",
+    "databaseId": 1312638720,
+    "nameWithOwner": "kotoba-lang/kotobase-storage-sqlite",
+    "isPrivate": false,
+    "isArchived": false,
+    "pushedAt": "2026-09-25T01:29:12Z",
+    "defaultBranchRef": {
+      "name": "main",
+      "target": {
+        "oid": "9309ddcd456e9968f2da8447010dfe15dc60ead5"
+      }
+    },
+    "heads": {
+      "totalCount": 1,
+      "nodes": [
+        {
+          "name": "main",
+          "target": {
+            "oid": "9309ddcd456e9968f2da8447010dfe15dc60ead5"
+          }
+        }
+      ]
+    },
+    "tags": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "openPRs": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "allPRs": {
+      "totalCount": 0
+    },
+    "openIssues": {
+      "totalCount": 0
+    },
+    "releases": {
+      "totalCount": 0
+    }
+  },
+  "closed-pulls": [],
+  "local-observation": {
+    "head": "9309ddcd456e9968f2da8447010dfe15dc60ead5",
+    "branch": "",
+    "status": "",
+    "stashes": [],
+    "worktrees": "worktree <github>/kotoba-lang/kotobase-storage-sqlite\nHEAD 9309ddcd456e9968f2da8447010dfe15dc60ead5\ndetached",
+    "broken-worktree-metadata-kept-locally": false
+  },
+  "branch-reviews": []
+}

@@ -1,0 +1,54 @@
+{
+  "repository-before-archive": {
+    "id": "R_kgDOTj298Q",
+    "databaseId": 1312669169,
+    "nameWithOwner": "kotoba-lang/kotobase-storage-git",
+    "isPrivate": false,
+    "isArchived": false,
+    "pushedAt": "2026-09-25T01:28:24Z",
+    "defaultBranchRef": {
+      "name": "main",
+      "target": {
+        "oid": "49d88b71650ecc18affac8f1682fd14a6eeaeea8"
+      }
+    },
+    "heads": {
+      "totalCount": 1,
+      "nodes": [
+        {
+          "name": "main",
+          "target": {
+            "oid": "49d88b71650ecc18affac8f1682fd14a6eeaeea8"
+          }
+        }
+      ]
+    },
+    "tags": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "openPRs": {
+      "totalCount": 0,
+      "nodes": []
+    },
+    "allPRs": {
+      "totalCount": 0
+    },
+    "openIssues": {
+      "totalCount": 0
+    },
+    "releases": {
+      "totalCount": 0
+    }
+  },
+  "closed-pulls": [],
+  "local-observation": {
+    "head": "49d88b71650ecc18affac8f1682fd14a6eeaeea8",
+    "branch": "",
+    "status": "",
+    "stashes": [],
+    "worktrees": "worktree <github>/kotoba-lang/kotobase-storage-git\nHEAD 49d88b71650ecc18affac8f1682fd14a6eeaeea8\ndetached",
+    "broken-worktree-metadata-kept-locally": false
+  },
+  "branch-reviews": []
+}
