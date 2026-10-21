@@ -1,7 +1,7 @@
 {
   "schema": "kotoba.storage-source-consolidation.v1",
   "owner": "kotoba-lang/kotobase-storage",
-  "status": "pending-main-verification",
+  "status": "Seven provider sources archived after merged-main qualification; complete histories and WIP retained. No deletion; runtime admission and live deployment remain separate.",
   "protected-original-pin-holds": 239,
   "repository-deletions": 0,
   "repositories": [
@@ -13,7 +13,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-git.bundle",
       "bundle-sha256": "fc1a771097c8d61599df3469866f3608ff8489aaeaeb71f126ec15c316b10829",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-git.json",
-      "github-sha256": "454fa9229d3f9a77aadbad9cd8bb8ee25a09a8470192ab9b87313025491a7d34",
+      "github-sha256": "95088d9df308ed2871147c2db4247781be88440895cd391fc627d02a81df6f81",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -73,8 +73,8 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 9,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-ipfs",
@@ -84,7 +84,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-ipfs.bundle",
       "bundle-sha256": "e60b3ca6693a5f78eeecc4ef0c765736a7c9bc9f7877df9b800514cefe840007",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-ipfs.json",
-      "github-sha256": "84ecdaa73692819bce600fe9127b91aa87a862d583762a32c3a77e2bb0e24d54",
+      "github-sha256": "25105151a2379c548854053f22c0cd181556ce3484ce7b07790b77b03cc605a7",
       "preserved-refs": [
         {
           "ref": "refs/archive/forest-reconcile-20261007/heads/agent/unixfs-carv2-large-put",
@@ -234,8 +234,8 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 26,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-kura",
@@ -245,7 +245,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-kura.bundle",
       "bundle-sha256": "77126a495a75bf4fc92f1a42638831b0b82744b3737175dd92efdac4cb141b95",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-kura.json",
-      "github-sha256": "ae1a614352e77adfe37bf1ebfa5a73542e80dd9544605c0330df41ea28861f56",
+      "github-sha256": "ee64ba7edcf32abace72d8b57775a24324393331ddfc212eda577b6c35039b98",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -395,8 +395,8 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 14,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-pack",
@@ -406,7 +406,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-pack.bundle",
       "bundle-sha256": "67eac786582c2f6982d0ef4edee1a9c9d10dfa42519f668ee568f7a5ca70c25e",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-pack.json",
-      "github-sha256": "fd1cbac79bffb52c24328126b88f0bcb2e798f51d9e63045b296f7e33e3084d7",
+      "github-sha256": "fa8876fc133fbea939547958b1cd1a2fb3ca38a3188c45d4ff9ddb98e3a26de8",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -503,8 +503,8 @@
         "status": "D target/cljs-compile/cljs/core.cljk\n D target/cljs-compile/cljs/core.js\n D target/cljs-compile/cljs/core.js.map\n D target/cljs-compile/clojure/string.cljk\n D target/cljs-compile/clojure/string.cljs.cache.json\n D target/cljs-compile/clojure/string.js\n D target/cljs-compile/clojure/string.js.map\n D target/cljs-compile/ipld/car/bytes.cljc.cache.json\n D target/cljs-compile/ipld/car/bytes.js\n D target/cljs-compile/ipld/car/bytes.js.map\n D target/cljs-compile/kotobase/storage/core.cljc.cache.json\n D target/cljs-compile/kotobase/storage/core.js\n D target/cljs-compile/kotobase/storage/core.js.map\n D target/cljs-compile/multiformats/base32.cljc.cache.json\n D target/cljs-compile/multiformats/base32.js\n D target/cljs-compile/multiformats/base32.js.map\n D target/cljs-compile/multiformats/core.js",
         "restore-apply-status-verified": true
       },
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-postgres",
@@ -514,7 +514,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-postgres.bundle",
       "bundle-sha256": "44d190eab609bc2aeeee5d3ad9b6db49ecc8aae99d8dd2edbe918d297157e991",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-postgres.json",
-      "github-sha256": "62030137b56902d60dd9433d8dca94221fe0d71a1780265b11e047b5f46334ba",
+      "github-sha256": "f1a63c8f0a61039ef04534736b50782496ca4bd4352673f1f959fec73b76ee40",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -586,8 +586,8 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 11,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-s3",
@@ -597,7 +597,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-s3.bundle",
       "bundle-sha256": "f678106e02de366f4787ae13af2787292a972493bfd43acdf770c14602a8fafe",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-s3.json",
-      "github-sha256": "736abc1e120d22fc8ac255e34fdc683599172fdc5cdcf1988a72e073486d7bc1",
+      "github-sha256": "cfe60b784c675649606c2ea3801592fba6c4693d675169edffc4577bd316ddaf",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -741,8 +741,8 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 31,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     },
     {
       "repository": "kotoba-lang/kotobase-storage-sqlite",
@@ -752,7 +752,7 @@
       "history-bundle": "maintenance/storage-consolidation/2026-10-22/bundles/kotobase-storage-sqlite.bundle",
       "bundle-sha256": "d1ffac5a788875727ed041a5c46ae010e96e170dcc3b3d67408545b5aa93ebbb",
       "github-snapshot": "maintenance/storage-consolidation/2026-10-22/github/kotobase-storage-sqlite.json",
-      "github-sha256": "5c9b35af252bf8c22981ac6f2a4f3e9cccbcb294efe9ac8ea10da9305716ca79",
+      "github-sha256": "97d77e646bec40206f1088931a6b373cb8d3f310962c3a6f59bbe33903103bc1",
       "preserved-refs": [
         {
           "ref": "refs/audit/forest-maintenance/default",
@@ -818,8 +818,100 @@
       "history-restored-and-fsck": true,
       "original-file-hashes-checked": 10,
       "working-tree-change": null,
-      "archived": false,
-      "archive-status": "pending-main-verification"
+      "archived": true,
+      "archive-status": "archived-after-main-verification"
     }
-  ]
+  ],
+  "main-verification": {
+    "commit": "a831dda3f475fa944824ee703e69da077dc79a25",
+    "reviewed-head": "0ff090573ab7f8210642aeb74f1ef80190fd65f9",
+    "tree": "6d3fa38fb48c45f9b09e1d1257c022cc642c0dbd",
+    "pull-request": "https://github.com/kotoba-lang/kotobase-storage/pull/4",
+    "JVM-packages": {
+      "packages": 5,
+      "owner-plus-provider-tests": 138,
+      "owner-plus-provider-assertions": 516,
+      "failures": 0,
+      "errors": 0
+    },
+    "public-CLI": {
+      "packages": 7,
+      "aliases": 14,
+      "lookup": "exact source ID/alias CLI; declared-host execution origins checked separately",
+      "admission": "not-granted"
+    },
+    "source-origins": [
+      {
+        "id": "kotoba.kotobase.storage.git",
+        "host": "JVM",
+        "source": "providers/kotoba.kotobase.storage.git/src/kotobase/storage/git.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.kura",
+        "host": "JVM",
+        "source": "providers/kotoba.kotobase.storage.kura/src/kotobase/storage/kura.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.pack",
+        "host": "JVM",
+        "source": "providers/kotoba.kotobase.storage.pack/src/kotobase/storage/pack.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.postgres",
+        "host": "JVM",
+        "source": "providers/kotoba.kotobase.storage.postgres/src/kotobase/storage/postgres.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.sqlite",
+        "host": "JVM",
+        "source": "providers/kotoba.kotobase.storage.sqlite/src/kotobase/storage/sqlite.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.ipfs",
+        "host": "public Kotoba CLI / SCI",
+        "source": "providers/kotoba.kotobase.storage.ipfs/src/kotobase/storage/ipfs.cljk"
+      },
+      {
+        "id": "kotoba.kotobase.storage.s3",
+        "host": "public Kotoba CLI / SCI",
+        "source": "providers/kotoba.kotobase.storage.s3/src/kotobase/storage/s3.cljk"
+      }
+    ],
+    "all-provider-source-origins-verified": true,
+    "S3-R2-binding": {
+      "scripts": 2,
+      "failures": 0
+    },
+    "S3-compiled": {
+      "builds": [
+        "engine-r2",
+        "prolly-engine-r2",
+        "advanced-r2"
+      ],
+      "failures": 0
+    },
+    "Kura-compiled": {
+      "tests": 17,
+      "assertions": 70,
+      "lint-errors": 0,
+      "lint-warnings": 0
+    },
+    "source-preservation-rechecked": true,
+    "complete-bundles-restored-and-fsck": 7,
+    "refs": 114,
+    "original-file-hashes": 140,
+    "WIP-patch-restored": true,
+    "original-pin-holds-unchanged": 239,
+    "CI": "Actions remain disabled; local main qualification only",
+    "native-and-live-service-qualification": "separate; not claimed",
+    "S3-npm-test": {
+      "exit": 0,
+      "host": "public kbb SCI + compiled Node; local Miniflare R2"
+    },
+    "Actions": {
+      "enabled": false,
+      "main-runs": 0,
+      "result": "no CI success claim"
+    }
+  }
 }
