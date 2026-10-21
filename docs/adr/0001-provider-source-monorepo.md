@@ -76,14 +76,25 @@ pack, S3 mock/object/signature/benchmark guards, and IPFS's injected Kubo/Helia
 clients, local archive HTTP fixture and real loopback TCP peers. Helia is not
 started as a live node, and no live Kubo/S3/Kura service is used.
 
-The real Miniflare/R2 and advanced compiled S3/engine build gates still require
-qualification before retirement. Current source lookup and recovery checks do
-not substitute for those gates. Native/Wasm, live interoperability, production
+The two actual Miniflare/R2 binding suites, compiled engine and Prolly reopen
+fixtures, and advanced ETag/CAS/race gate also pass locally. Their runners reject
+an unconditional R2 client and an off-by-one range conversion. The existing
+`amu compile` commands incorrectly treated Shadow build IDs as Amu source paths;
+the test commands now invoke the original pinned Shadow/CLJS build declarations
+through byte-identical extension views. The inconsistent S3 npm lock now includes
+Miniflare's exact undici 7.28.0 instead of the unrelated hoisted 7.29.0; every other
+entry and all direct dependency values remain unchanged. Seven provider source
+origins are checked in their declared JVM or public Kotoba CLI/SCI hosts; a source
+CLI lookup by itself is not runtime proof. Merged-main qualification still precedes
+retirement. Native/Wasm, live interoperability, production
 shard durability, signed-order admission and deployment are separate claims.
 Existing Actions remain disabled; no CI success is claimed.
 
 ```sh
 node scripts/check-storage-sources.mjs
+# Install each IPFS/S3 npm lock with --ignore-scripts first (include optional for IPFS).
+python3 scripts/test-storage-hosts.py /absolute/github/workspaces/storage-tests \
+  --kotoba /absolute/kotoba --engine /absolute/org-babashka-nbb/cli.js
 node scripts/check-storage-history.mjs /absolute/github/workspaces/storage-restore
 node scripts/storage-sources.mjs resolve kotoba.kotobase.storage.ipfs
 node scripts/storage-sources.mjs resolve io.github.kotoba-lang/kotobase-storage-ipfs

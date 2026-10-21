@@ -32,7 +32,7 @@ for(const origin of imports.imports){
 assert.deepEqual([...usedChanges].sort(),Object.keys(imports['local-changes']).sort());
 for(const [relative,addition] of Object.entries(imports.additions)){
   assert(relative.startsWith('providers/')&&!files.has(relative));assert(addition.reason?.trim());
-  assert(relative.endsWith('/nbb.edn')||relative.endsWith('/package-lock.json'));assert.equal(hash(fs.readFileSync(safe(relative))),addition.sha256);files.add(relative);
+  assert(relative.endsWith('/nbb.edn')||relative.endsWith('/package-lock.json')||relative==='providers/kotoba.kotobase.storage.s3/scripts/test-compiled.py');assert.equal(hash(fs.readFileSync(safe(relative))),addition.sha256);files.add(relative);
 }
 function inventory(directory){return fs.readdirSync(path.join(root,directory),{withFileTypes:true}).flatMap(entry=>{
   if(['node_modules','target','.cpcache','.nbb','.shadow-cljs','.cache'].includes(entry.name))return [];

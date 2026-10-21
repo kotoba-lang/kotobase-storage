@@ -4,6 +4,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {validateCatalog,resolveSource,sourcePaths} from './storage-sources.mjs';
+const allowedWorkspace=p=>{const absolute=path.resolve(p),temp=process.env.RUNNER_TEMP&&path.resolve(process.env.RUNNER_TEMP);return absolute.includes('/github/workspaces/')||(process.env.GITHUB_ACTIONS==='true'&&temp&&(absolute===temp||absolute.startsWith(temp+path.sep)));};
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const catalog=JSON.parse(fs.readFileSync(path.join(root,'providers/catalog.json')));
 validateCatalog(catalog);let checked=0;
@@ -19,7 +20,7 @@ for(const mutate of [
   c=>c.packages[0].admission='granted']){
   const c=structuredClone(catalog);mutate(c);assert.throws(()=>validateCatalog(c));
 }
-const base=process.argv[2];assert(base?.includes('/github/workspaces/'),'provide a task workspace');fs.mkdirSync(base,{recursive:true});
+const base=process.argv[2];assert(base&&allowedWorkspace(base),'provide a task workspace');fs.mkdirSync(base,{recursive:true});
 const tmp=fs.mkdtempSync(path.join(base,'source-confinement-'));
 try{
   const selected=catalog.packages[0],packageRoot=path.join(tmp,selected.path);fs.mkdirSync(packageRoot,{recursive:true});

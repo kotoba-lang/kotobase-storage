@@ -1,4 +1,4 @@
-name: test
+name: storage source and host contracts
 on: [push, pull_request]
 
 jobs:
@@ -12,28 +12,31 @@ jobs:
         with: { node-version: '22' }
       - uses: DeLaGuardo/setup-clojure@13.0
         with: { cli: latest }
-      - run: npm install -g nbb
-
-      - name: JVM contract (real threads)
-        run: clojure -M:test
-
-      # Not a duplicate of the JVM run. The concurrent half behaves
-      # differently on one event loop, and every provider in this family
-      # deploys on the Worker path -- so the async suite carries its own
-      # oracles, and this step is what proves the race can still fail.
-      #
-      # nbb rather than `cljs.main -re node`: that runner does not
-      # propagate the script's exit code, so a failing suite exited 0 and
-      # this gate would have been green forever. Checked by breaking an
-      # oracle on purpose.
-      - name: async contract oracles
-        run: nbb --classpath "src:test" test/run.cljs
-
-      # The large-object plane, which the JVM/sync suite structurally cannot
-      # cover: presigning is HMAC over a canonical request, the only SHA-256
-      # on a Worker is `crypto.subtle`, and that is async -- so the sync
-      # object contract can only ever accept a store that signs nothing.
-      # Its oracles are three views of one hazard: a grant that constrains
-      # nothing.
-      - name: async large-object contract oracles
-        run: nbb --classpath "src:test" test/object_run.cljs
+      # Explicit compatibility hosts. Source discovery grants no runtime admission.
+      - uses: actions/checkout@v4
+        with:
+          repository: kotoba-lang/kotoba
+          ref: f0ecb24b722664b825ab89992e9cc98c37ecaaf0
+          path: .ci/kotoba
+      - uses: actions/checkout@v4
+        with:
+          repository: kotoba-lang/org-babashka-nbb
+          ref: 1675e6aab65d5a99e37840cc5012bc2eca6f4a07
+          path: .ci/org-babashka-nbb
+      - run: npm ci --ignore-scripts --omit=dev
+        working-directory: .ci/org-babashka-nbb
+      - run: npm ci --ignore-scripts --include=optional
+        working-directory: providers/kotoba.kotobase.storage.ipfs
+      - run: npm ci --ignore-scripts
+        working-directory: providers/kotoba.kotobase.storage.s3
+      - name: Source and complete recovery checks
+        run: |
+          node scripts/check-storage-sources.mjs
+          node scripts/test-storage-sources.mjs "$RUNNER_TEMP/source-negative"
+          node scripts/check-storage-history.mjs "$RUNNER_TEMP/history"
+          node scripts/test-storage-history.mjs "$RUNNER_TEMP/history-negative"
+      - name: JVM, public CLI/SCI, compiled Node and local R2 contracts
+        run: >-
+          python3 scripts/test-storage-hosts.py "$RUNNER_TEMP/storage-hosts"
+          --kotoba "$GITHUB_WORKSPACE/.ci/kotoba"
+          --engine "$GITHUB_WORKSPACE/.ci/org-babashka-nbb/cli.js"

@@ -1,7 +1,7 @@
 {
   "schema": "kotoba.storage-source-local-verification.v1",
   "owner-base": "111c7156cd4a38b544cb3946f70b8edcca466d77",
-  "status": "draft; main and remaining compiled R2 gates pending",
+  "status": "qualified locally; merged-main qualification pending",
   "JVM": {
     "projects": 6,
     "provider-projects": 5,
@@ -34,11 +34,33 @@
   "external-EDN-values": "verified unchanged; selected storage roots only",
   "npm-exception": "explicit hashes 2.0.1; old 2.4.0 retained with integrity under curves; all other lock entries unchanged",
   "pending": [
-    "actual Miniflare R2 binding suites",
-    "compiled S3 engine/prolly/advanced builds and their source origins",
     "merged-main tests/CLI and immediate retirement guard checks"
   ],
   "Actions": "remain disabled; no CI success claim",
   "archive-count": 0,
-  "delete-count": 0
+  "delete-count": 0,
+  "S3-R2-binding": {
+    "scripts": 2,
+    "failures": 0,
+    "negative-oracles": [
+      "unconditional client rejected by race",
+      "off-by-one range rejected"
+    ]
+  },
+  "S3-compiled": {
+    "builds": [
+      "engine-r2",
+      "prolly-engine-r2",
+      "advanced-r2"
+    ],
+    "failures": 0,
+    "host": "compiled CLJS/Node; local Miniflare R2"
+  },
+  "source-origins": {
+    "providers": 7,
+    "JVM": 5,
+    "public-Kotoba-CLI-SCI": 2,
+    "all-in-owner-provider-subtrees": true
+  },
+  "S3-lock-exception": "Miniflare exact undici 7.28.0 restored; other locked entries unchanged"
 }

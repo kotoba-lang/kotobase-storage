@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+const allowedWorkspace=p=>{const absolute=path.resolve(p),temp=process.env.RUNNER_TEMP&&path.resolve(process.env.RUNNER_TEMP);return absolute.includes('/github/workspaces/')||(process.env.GITHUB_ACTIONS==='true'&&temp&&(absolute===temp||absolute.startsWith(temp+path.sep)));};
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const safe=relative=>{const p=path.resolve(root,relative);assert(p.startsWith(root+path.sep)&&fs.lstatSync(p).isFile()&&!fs.lstatSync(p).isSymbolicLink());assert(fs.realpathSync(p).startsWith(fs.realpathSync(root)+path.sep));return p;};
 const json=p=>JSON.parse(fs.readFileSync(safe(p),'utf8'));
@@ -14,7 +15,7 @@ const imports=json('maintenance/storage-source-imports.json');
 assert.equal(m.schema,'kotoba.storage-source-consolidation.v1');assert.equal(m.owner,'kotoba-lang/kotobase-storage');
 assert.equal(m.repositories.length,7);assert.equal(m['protected-original-pin-holds'],239);assert.equal(m['repository-deletions'],0);
 function git(cwd,args){const p=spawnSync('git',['-C',cwd,...args],{encoding:'utf8',maxBuffer:32*1024*1024});assert.equal(p.status,0,p.stderr);return p.stdout.trim();}
-const workspace=process.argv[2];if(workspace){assert(path.resolve(workspace).includes('/github/workspaces/'));fs.mkdirSync(workspace,{recursive:true});}
+const workspace=process.argv[2];if(workspace){assert(allowedWorkspace(workspace));fs.mkdirSync(workspace,{recursive:true});}
 const seen=new Set();let refs=0,pulls=0,historyFiles=0;
 for(const r of m.repositories){
   assert(!seen.has(r.repository));seen.add(r.repository);assert(r['history-restored-and-fsck']);
@@ -24,7 +25,7 @@ for(const r of m.repositories){
   assert.equal(g['closed-pulls'].length,before.allPRs.totalCount);pulls+=g['closed-pulls'].length;
   if(r.archived){
     assert.equal(r['archive-status'],'archived-after-main-verification');assert(g['archive-readback']?.archived&&g['archive-readback']['source-and-refs-unchanged']);assert.deepEqual(g['repository-after-archive'],{...before,isArchived:true});
-    const v=m['main-verification'];assert.match(v?.commit??'',/^[a-f0-9]{40}$/);assert.equal(v['JVM-packages'].packages,5);assert.equal(v['JVM-packages'].failures,0);assert.equal(v['public-CLI'].packages,7);assert(v['all-provider-source-origins-verified']);
+    const v=m['main-verification'];assert.match(v?.commit??'',/^[a-f0-9]{40}$/);assert.equal(v['JVM-packages'].packages,5);assert.equal(v['JVM-packages'].failures,0);assert.equal(v['public-CLI'].packages,7);assert(v['all-provider-source-origins-verified']);assert.equal(v['JVM-packages'].errors,0);assert.equal(v['source-origins'].length,7);assert.equal(new Set(v['source-origins'].map(r=>r.id)).size,7);assert.equal(v['S3-R2-binding'].scripts,2);assert.equal(v['S3-R2-binding'].failures,0);assert.deepEqual(v['S3-compiled'].builds,['engine-r2','prolly-engine-r2','advanced-r2']);assert.equal(v['S3-compiled'].failures,0);assert(v['source-preservation-rechecked']);
   }else assert.equal(r['archive-status'],'pending-main-verification');
   if(r['working-tree-change']){
     const w=r['working-tree-change'];assert(w['restore-apply-status-verified']);assert.equal(hash(w.patch),w.sha256);

@@ -992,12 +992,26 @@
       "imported-sha256": "39e883fa6105aadc4e88e094944176dbc5ccc7ac0b8293b5a1fb8ff0a8f13188",
       "sha256": "d03e13b81c654599bcf1f28af1f4b9f96ebf123c34b1e74c9f129d3a24455a9c",
       "reason": "Declare direct @noble/hashes 2.0.1 as required by the existing pinned multiformats project. The previously hoisted 2.4.0 copy keeps its exact version/integrity under curves; every other locked package entry is byte-value identical."
+    },
+    "providers/kotoba.kotobase.storage.s3/package.json": {
+      "imported-sha256": "bd8149ec6a6343816a1669486be2a08ab65d491459467882f3d306243a2c188e",
+      "sha256": "81c5567263751db6a91dd16d41b284f2bb6ca057f57c0afe6d79b3220c6d0c8e",
+      "reason": "Use the existing pinned Shadow/CLJS build declarations for the Node R2 fixtures. The old Amu command rejected build IDs as source paths; Amu/Wasm qualification remains separate. Dependency values are unchanged."
+    },
+    "providers/kotoba.kotobase.storage.s3/package-lock.json": {
+      "imported-sha256": "68e3a3190285448d5b075cf59ecf8f3c5ef7cc796fbeb2f2d03a1c0fa359d117",
+      "sha256": "ddc469f7786c47ba2f204576e36952e5903f218046348d71e27a41f382d51bcc",
+      "reason": "Repair the inconsistent Miniflare lock: its declared exact undici 7.28.0 replaces the wrongly hoisted 7.29.0 as a nested entry. Every other locked package entry is identical; direct dependency values are unchanged."
     }
   },
   "additions": {
     "providers/kotoba.kotobase.storage.postgres/nbb.edn": {
       "sha256": "5b19b031528cb19b2e9b5237888aacf451a595a88dddada0936f98fd175fca76",
       "reason": "Declare the provider's complete runtime graph for explicit SCI source loading."
+    },
+    "providers/kotoba.kotobase.storage.s3/scripts/test-compiled.py": {
+      "sha256": "cbf6879951b2f0d1cc24ae6dac0a681c40427f8171abaddb5e549acdcd2e31c7",
+      "reason": "Run existing compiled Node R2 fixtures from byte-identical extension views using the original pinned compiler/engine dependencies; no live service or native qualification."
     }
   },
   "branch-reviews": [
@@ -1136,6 +1150,19 @@
         "old-root-hashes": "2.4.0",
         "preserved-at": "node_modules/@noble/curves/node_modules/@noble/hashes",
         "new-direct-hashes": "2.0.1",
+        "all-other-package-entries-unchanged": true
+      }
+    },
+    {
+      "repository": "kotoba-lang/kotobase-storage-s3",
+      "file": "package-lock.json",
+      "dependency": "undici",
+      "version": "7.28.0",
+      "authority": "existing locked Miniflare dependencies.undici exact 7.28.0",
+      "reason": "npm ci refused the old lock because its required exact dependency was absent.",
+      "lock-review": {
+        "removed": "node_modules/undici 7.29.0",
+        "added": "node_modules/miniflare/node_modules/undici 7.28.0",
         "all-other-package-entries-unchanged": true
       }
     }

@@ -245,3 +245,12 @@ kbb --backend sci --classpath "src:test" test/run.cljk # async, with oracles
 Both, as CI runs them. `nbb` rather than `cljs.main -re node`: that runner
 does not propagate the script's exit code, so a failing suite exited 0 and
 the gate would have been green forever.
+
+
+## Provider source projects
+
+Seven opt-in provider projects live under `providers/`; the root contract never
+depends on them. Run `node scripts/storage-sources.mjs list` for exact source IDs
+and legacy coordinate aliases. See [ADR-0001](docs/adr/0001-provider-source-monorepo.md)
+for source/history provenance, reproducible JVM/SCI/compiled Node verification,
+and separate native, admission and deployment gates.

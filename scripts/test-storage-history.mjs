@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-const root=process.cwd(),base=process.argv[2];assert(base?.includes('/github/workspaces/'));fs.mkdirSync(base,{recursive:true});
+const allowedWorkspace=p=>{const absolute=path.resolve(p),temp=process.env.RUNNER_TEMP&&path.resolve(process.env.RUNNER_TEMP);return absolute.includes('/github/workspaces/')||(process.env.GITHUB_ACTIONS==='true'&&temp&&(absolute===temp||absolute.startsWith(temp+path.sep)));};
+const root=process.cwd(),base=process.argv[2];assert(base&&allowedWorkspace(base));fs.mkdirSync(base,{recursive:true});
 const tmp=fs.mkdtempSync(path.join(base,'storage-history-negative-'));
 try{
   fs.mkdirSync(path.join(tmp,'scripts'));fs.copyFileSync(path.join(root,'scripts/check-storage-history.mjs'),path.join(tmp,'scripts/check-storage-history.mjs'));
